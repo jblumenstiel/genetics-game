@@ -53,6 +53,7 @@ class DrawingModule {
     const { L, up, low, karyotype } = this.inst;
     this.alleleOrder = [up, low];
     this.parents = { mother: this.inst.mother, father: this.inst.father };
+    this.parentNotes = {}; // a parent option the student picked that is impossible, with its reason
     this.zygoteChoice = null; // alleles the student picked in question a
     this.zygoteNote = null; // an option they picked that was flagged, with its reason
     this.follow = { alleles: this.sorted([this.inst.egg, this.inst.sperm]), source: 'default' };
@@ -139,7 +140,7 @@ class DrawingModule {
         id: 'a',
         title: 'Egg and sperm',
         prompt: () =>
-          `This is a diploid organism, and gene ${this.inst.L} is autosomal (it is not on a sex chromosome). First choose a zygote genotype these parents could produce. Then build the egg and the sperm that would make it: in each, show the chromosomes, the correct number of chromatids, and the allele on every chromatid. The rest of the exercise follows the zygote you choose.`,
+          `This is a diploid organism, and gene ${this.inst.L} is autosomal (it is not on a sex chromosome). Keep the parents’ genotypes below or choose your own, then choose a zygote genotype these parents could produce. Then build the egg and the sperm that would make it: in each, show the chromosomes, the correct number of chromatids, and the allele on every chromatid. The rest of the exercise follows the zygote you choose.`,
         start: [{ label: 'Egg' }, { label: 'Sperm' }],
         fixed: true,
       },
@@ -329,12 +330,35 @@ class DrawingModule {
     return h('div', { class: 'feedback bad' }, h('b', {}, IMPOSSIBLE_NOTE), ' ', option.reason);
   }
 
-  // Question a: the parents are given; the student picks a zygote they could make, then builds its gametes.
+  // Question a: the engine suggests parents, which the student can change; then they pick a zygote those parents
+  // could make and build its gametes.
   renderZygote(body) {
-    const { mother, father } = this.parents;
     const note = this.zygoteNote;
+    const parentRow = (who) => {
+      const pnote = this.parentNotes[who];
+      return h(
+        'div',
+        { class: 'picker' },
+        h('div', { class: 'picker-label' }, who === 'mother' ? 'Mother’s genotype' : 'Father’s genotype'),
+        this.genotypeSelect(who, pnote?.text ?? (this.parents[who] ? g(this.parents[who]) : null), (o) => this.pickParent(who, o)),
+        pnote ? this.impossibleNote(pnote) : null,
+      );
+    };
     body.append(
-      h('div', { class: 'callout' }, h('b', {}, `Mother: ${g(mother)}   ·   Father: ${g(father)}`), 'One line per parent: the slash separates the alleles on the two homologs.'),
+      h(
+        'div',
+        { class: 'callout' },
+        h('b', {}, 'The parents'),
+        'Keep these genotypes or choose others. One line per parent: the slash separates the alleles on the two homologs.',
+        parentRow('mother'),
+        parentRow('father'),
+      ),
+    );
+    if (this.parentsPending()) {
+      body.append(h('p', { class: 'hint' }, 'Choose a possible genotype for both parents to continue.'));
+      return;
+    }
+    body.append(
       h(
         'div',
         { class: 'picker' },
@@ -344,6 +368,60 @@ class DrawingModule {
         this.zygoteChoice && !note ? h('div', { class: 'feedback good' }, `Possible. Now build an egg and a sperm that together make ${g(this.zygoteChoice)}.`) : null,
       ),
     );
+  }
+
+  // A new parent genotype changes which zygotes are possible, so the zygote choice is checked again.
+  pickParent(who, option) {
+    // An impossible pick is shown and explained, but the last possible genotype is kept underneath it.
+    if (!option.possible) this.parentNotes[who] = option;
+    else {
+      this.parents[who] = this.sorted(option.alleles);
+      this.parentNotes[who] = null;
+    }
+    this.done.delete('a');
+    this.revealed.delete('a');
+    const { mother, father } = this.parents;
+    if (!this.parentsPending()) {
+      if (this.zygoteChoice) {
+        const still = zygoteFromParents(this.zygoteChoice, mother, father);
+        if (!still.ok) {
+          const option = this.inst.options.find((o) => o.possible && o.text === g(this.zygoteChoice));
+          this.zygoteChoice = null;
+          this.zygoteNote = { option, title: 'With these parents, your zygote is no longer possible.', reason: still.reason };
+        }
+      } else if (this.zygoteNote?.option.possible) {
+        // A zygote flagged for the old parents may be fine for the new ones.
+        const now = zygoteFromParents(this.zygoteNote.option.alleles, mother, father);
+        if (now.ok) {
+          this.zygoteChoice = this.sorted(this.zygoteNote.option.alleles);
+          this.zygoteNote = null;
+        } else {
+          this.zygoteNote = { ...this.zygoteNote, reason: now.reason };
+        }
+      }
+      this.syncFollow();
+    }
+    this.feedback = null;
+    this.applyLock();
+    this.renderStepper();
+    this.renderBody();
+  }
+
+  parentsPending() {
+    return !!(this.parentNotes.mother || this.parentNotes.father);
+  }
+
+  // Questions b to h follow the zygote chosen in a; without one, they follow a default these parents can make.
+  syncFollow() {
+    const { mother, father } = this.parents;
+    if (this.zygoteChoice) {
+      if (g(this.zygoteChoice) !== g(this.follow.alleles) || !['chosen-a', 'gametes'].includes(this.follow.source)) this.setFollow(this.zygoteChoice, 'chosen-a');
+      return;
+    }
+    if (this.follow.source === 'chosen') return;
+    if (!zygoteFromParents(this.follow.alleles, mother, father).ok || this.follow.source !== 'default') {
+      this.setFollow([mother[0], father[0]], 'default');
+    }
   }
 
   pickZygote(option) {
@@ -369,7 +447,7 @@ class DrawingModule {
 
   // Question a's workspace stays dimmed and locked until a possible zygote is chosen.
   applyLock() {
-    const locked = this.step.id === 'a' && !this.zygoteChoice;
+    const locked = this.step.id === 'a' && (!this.zygoteChoice || this.parentsPending());
     this.builder.disabled = locked;
     this.builder.root.alpha = locked ? 0.35 : 1;
     this.lockNote.visible = locked;
@@ -484,6 +562,7 @@ class DrawingModule {
   checkGametes(student) {
     const { L } = this.inst;
     const { mother, father } = this.parents;
+    if (this.parentsPending()) return { problem: { code: 'parents' } };
     if (!this.zygoteChoice) return { problem: { code: 'zygote' } };
     const result = {};
     for (const [label, parent, color] of [
@@ -541,6 +620,8 @@ class DrawingModule {
   explain(step, p) {
     const one = (n) => `${n} chromosome${n === 1 ? '' : 's'}`;
     switch (p.code) {
+      case 'parents':
+        return 'First choose a possible genotype for both parents.';
       case 'zygote':
         return 'First choose a zygote genotype these parents could produce.';
       case 'gametes-zygote':
