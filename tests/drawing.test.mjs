@@ -43,6 +43,9 @@ test('mitotic metaphase: replicated, unpaired, identical sisters', () => {
   assert.ok(evaluate([{ items: [chrom('B', 'B'), chrom('b', 'b')] }], expected, { loci: LOCI }).ok);
   assert.deepEqual(codes(evaluate([{ items: [biv(chrom('B', 'B'), chrom('b', 'b'))] }], expected, { loci: LOCI })), ['no-pairing']);
   assert.deepEqual(codes(evaluate([{ items: [chrom('B', 'b'), chrom('b', 'B')] }], expected, { loci: LOCI })), ['sisters-differ']);
+  // All four chromatids B: the wrong genotype, named in the problem.
+  const [p] = evaluate([{ items: [chrom('B', 'B'), chrom('B', 'B')] }], expected, { loci: LOCI }).problems;
+  assert.deepEqual(p, { code: 'content', got: ['B/B'], expected: ['B/b'] });
 });
 
 test('mitosis daughters: two identical nuclei', () => {
@@ -72,7 +75,8 @@ test('metaphase II and gametes come from the engine meiosis', () => {
   const right = ['B', 'b', 'B', 'b'].map((a) => ({ items: [chrom(a)] }));
   assert.ok(evaluate(right, gametes, { loci: LOCI }).ok);
   const wrong = ['B', 'B', 'B', 'b'].map((a) => ({ items: [chrom(a)] }));
-  assert.deepEqual(codes(evaluate(wrong, gametes, { loci: LOCI })), ['content']);
+  const [p] = evaluate(wrong, gametes, { loci: LOCI }).problems;
+  assert.deepEqual(p, { code: 'content', got: ['B', 'B', 'B', 'b'], expected: ['B', 'B', 'b', 'b'] });
 });
 
 test('minimum crossovers to spell a gamete', () => {

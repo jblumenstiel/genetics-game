@@ -69,6 +69,21 @@ export function nucleusKey(nucleus, loci) {
     .join(' ');
 }
 
+// A nucleus's genotype in one-line notation: one allele string per chromosome (sister chromatids share it), with
+// homologs joined by "/" and different chromosomes by " ; ". Uppercase alleles sort first, so it reads H/h.
+// loci: ordered locus ids; chromOrder: chromosome ids in karyotype order.
+export function nucleusGenotype(nucleus, loci, chromOrder = null) {
+  const byChrom = new Map();
+  for (const c of chromosomesOf(nucleus)) {
+    const alleles = loci.map((l) => c.chromatids[0]?.alleles[l]).filter(Boolean).join('');
+    if (!byChrom.has(c.chrom)) byChrom.set(c.chrom, []);
+    byChrom.get(c.chrom).push(alleles || '?');
+  }
+  const order = chromOrder ?? [...byChrom.keys()].sort();
+  const parts = order.filter((id) => byChrom.has(id)).map((id) => byChrom.get(id).sort().join('/'));
+  return parts.length ? parts.join(' ; ') : 'empty';
+}
+
 // Fewest crossovers needed for a gamete chromatid spelling `target` along `loci` (in chromosome order), given the
 // two parental homolog haplotypes. Each switch between homologs between adjacent loci costs one crossover.
 export function minCrossovers(target, homologs, loci) {
@@ -144,12 +159,21 @@ export function evaluate(student, expected, { loci, matchBy = 'multiset', minCro
     }
   }
 
+  // Wrong contents: report the genotypes built and expected so feedback can name them.
   if (matchBy === 'label') {
-    for (const [s, e] of pairs) if (nucleusKey(s, loci) !== nucleusKey(e, loci)) problems.push({ code: 'content', label: s.label });
+    for (const [s, e] of pairs) {
+      if (nucleusKey(s, loci) !== nucleusKey(e, loci)) problems.push({ code: 'content', label: s.label, got: nucleusGenotype(s, loci), expected: nucleusGenotype(e, loci) });
+    }
   } else {
     const a = student.map((n) => nucleusKey(n, loci)).sort();
     const b = expected.map((n) => nucleusKey(n, loci)).sort();
-    if (a.join('\n') !== b.join('\n')) problems.push({ code: 'content' });
+    if (a.join('\n') !== b.join('\n')) {
+      problems.push({
+        code: 'content',
+        got: student.map((n) => nucleusGenotype(n, loci)).sort(),
+        expected: expected.map((n) => nucleusGenotype(n, loci)).sort(),
+      });
+    }
   }
   if (problems.length) return done();
 

@@ -659,15 +659,24 @@ class DrawingModule {
         return 'Every chromatid needs an allele. Drag an allele from the tray onto each chromatid.';
       case 'sisters-differ':
         return 'Sister chromatids are copies made in S phase, so they carry the same allele, unless a crossover swapped pieces.';
-      case 'content':
-        return {
-          b: `The zygote gets one chromosome from the egg and one from the sperm. This individual is ${g(this.follow.alleles)}.`,
-          c: 'Replication copies each chromosome exactly. Check the alleles on each chromosome.',
-          d: `Each daughter gets one sister chromatid of every chromosome, so both daughters match the zygote (${g(this.follow.alleles)}).`,
-          e: `The bivalent should hold the two homologs this individual inherited (${g(this.follow.alleles)}).`,
-          f: 'At anaphase I the homologs separated. Which alleles end up together in each nucleus?',
-          g: 'Each gamete gets one chromatid. How many gametes carry each allele?',
+      case 'content': {
+        // Name the genotypes: what was built, and what the engine expects for the individual being followed.
+        const list = (xs) => (xs.length === 1 ? xs[0] : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+        const why = {
+          b: 'The zygote carries one chromosome from the egg and one from the sperm.',
+          c: 'Replication copies each chromosome exactly, so the genotype does not change.',
+          d: 'Each daughter gets one sister chromatid of every chromosome, so both match the zygote.',
+          e: 'The bivalent holds the two homologs this individual inherited.',
+          f: 'At anaphase I the homologs separated, so each nucleus carries one homolog with its two identical sisters.',
+          g: 'Each gamete gets one chromatid of this chromosome.',
         }[step.id];
+        if (p.expected.length === 1) return `This is not the right genotype. The genotype should be ${p.expected[0]}; you built ${p.got[0]}. ${why}`;
+        const noun = { d: 'daughter nuclei', f: 'metaphase II nuclei', g: 'gametes' }[step.id] ?? 'nuclei';
+        const should = p.expected.every((x) => x === p.expected[0])
+          ? `Each of the ${p.expected.length} ${noun} should be ${p.expected[0]}`
+          : `The ${p.expected.length} ${noun} should be ${list(p.expected)}`;
+        return `These are not the right genotypes. ${should}; you built ${list(p.got)}. ${why}`;
+      }
       case 'crossovers-extra': {
         const t = this.derived().target;
         return `No crossover is needed. With one locus, a gamete carrying ${t} simply gets a chromatid from a homolog carrying ${t}. Remove the X (tap it, or drag it to the bin).`;
