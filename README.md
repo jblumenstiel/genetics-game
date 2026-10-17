@@ -8,6 +8,9 @@ Live site: https://jblumenstiel.github.io/genetics-game/
 
 ## Status
 
+- **Module 0, Build the cell:** playable. Students assemble egg, sperm, zygote, mitotic and meiotic cells
+  chromatid by chromatid for one locus with two alleles, mark crossovers, and list gamete frequencies. The
+  engine grades each cell.
 - **Module 1, One gene, one meiosis:** playable. Meiosis vs mitosis with chromatid-count checkpoints,
   Metaphase I orientation, gametes (whole tetrads vs one product per meiosis), fertilization into a Punnett
   square, predict-then-breed, and a detective puzzle with conditional probability.

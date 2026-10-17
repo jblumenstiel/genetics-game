@@ -9,10 +9,28 @@ genetics, statistics, molecular genetics and bacterial genetics. Exam I tests bi
 chi-square early, so Unit E modules 18 and 19 can be moved up to sit right after Module 2 if that matches
 the course calendar better.
 
+## Build the cell: a thread through every unit
+
+Students build cells themselves, chromatid by chromatid, and the engine grades each one. The cell builder
+(`js/builder/`) and grader (`js/engine/drawing.js`) handle any number of loci and chromosomes, so each later
+module gets its own "Build the cell" step with the same eight exam-style questions:
+
+1. egg and sperm, 2. zygote, 3. mitotic metaphase, 4. daughter nuclei, 5. metaphase I with the minimum
+crossovers needed for a stated gamete, 6. metaphase II, 7. gametes, 8. gamete genotypes and frequencies.
+
+| Where | Genetic setup |
+|-------|---------------|
+| Module 0 (built) | One locus, two alleles, no phenotypes |
+| Module 2 | Two loci on different chromosomes |
+| Module 5 | Two linked loci, cis and trans, crossovers required |
+| Module 9 | Two linked loci plus one unlinked (the A B ; c exam question) |
+| Module 11 | Non-disjunction at MI or MII |
+
 ## Unit A: Segregation and dominance
 
 | # | Module | Core interaction | Exam |
 |---|--------|------------------|------|
+| 0 | **Build the cell** (built) | Assemble egg, sperm, zygote, mitotic metaphase, daughter cells, metaphase I (with crossover marking), metaphase II and gametes for one locus; list gamete genotypes and frequencies. Graded against the engine, with feedback per misconception | chromatids per chromosome; mitosis vs meiosis outcomes; drawing meiosis |
 | 1 | **One gene, one meiosis** (built) | Step a cell through meiosis or mitosis, answering chromatid-count checkpoints; flip bivalent orientation at Metaphase I; fertilize gametes to fill a Punnett square; predict then breed 1/10/100 offspring; detective puzzle inferring parent genotypes from a litter; conditional probability (P(SS given spotted)) | chromatids per chromosome; mitosis vs meiosis; Punnett square meaning; selfing ratios; P(WW given round) |
 | 2 | Two genes, two chromosomes | Independent orientation of two bivalents; 9:3:3:1 emerges; product rule for A/a; B/b; C/c selfs | product rule, multi-locus genotype probabilities |
 | 3 | Dominance zoo | Complete, incomplete, codominance, haploinsufficiency, recessive lethals (2:1), gamete viability effects | dominant allele identification, haplosufficiency, reduced-viability gametes |

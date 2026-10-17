@@ -31,11 +31,19 @@ tests/                Node tests for the engine
    - `cross.js`: exact gamete and offspring distributions, ratio formatting, likelihoods.
    - `phenotype.js`: genotype to phenotype for complete, incomplete and codominant traits, dosage-aware so
      aneuploid and polyploid cells work.
+   - `drawing.js`: models of cells a student builds (nuclei of chromosomes, chromatids, alleles, bivalents,
+     crossover marks), expected models generated from engine cells and meioses, and a grader that returns
+     coded problems (wrong nucleus count, chromatid count, pairing, unlabeled chromatids, sisters that
+     differ, wrong contents, extra or missing crossovers) for the module to phrase. Also `minCrossovers`,
+     the fewest crossovers needed to spell a stated gamete.
 2. **Species** (`js/species/`) define the gorbies, glubbins and chomnies: body plan, karyotype, and the trait
    catalog. Each trait says which creature feature it drives (spots, ears, tail, color, antennae, pattern).
-3. **Render** (`js/render/`) draws everything as vector shapes with Pixi `Graphics`: procedural creatures with
+3. **Builder** (`js/builder/cell-builder.js`) is the interactive cell editor used by Module 0 and the
+   "Build the cell" steps of later modules. It edits drawing models only, so grading never depends on
+   screen positions.
+4. **Render** (`js/render/`) draws everything as vector shapes with Pixi `Graphics`: procedural creatures with
    idle motion, chromatids colored by haplotype, and cell membranes.
-4. **Modules** (`js/modules/<id>/`) take a seed, generate an instance from the engine, and run a sequence of
+5. **Modules** (`js/modules/<id>/`) take a seed, generate an instance from the engine, and run a sequence of
    steps. Each module exports `{ id, title, mount(ctx) }`; `mount` returns `{ destroy, resize }`.
 
 ## Generated instances

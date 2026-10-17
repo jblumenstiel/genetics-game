@@ -7,6 +7,14 @@ export const UNITS = [
     title: 'Segregation and dominance',
     modules: [
       {
+        n: 0,
+        id: 'drawing',
+        title: 'Build the cell',
+        blurb: 'Assemble eggs, sperm, zygotes, mitotic and meiotic cells chromatid by chromatid for one gene with two alleles. The engine grades every cell.',
+        exam: true,
+        load: () => import('./m00-drawing/index.js'),
+      },
+      {
         n: 1,
         id: 'segregation',
         title: 'One gene, one meiosis',
