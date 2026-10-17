@@ -75,6 +75,7 @@ class DrawingModule {
       alleles: { [L]: [up, low] },
       onChange: (nuclei) => {
         this.answers[this.step.id] = nuclei;
+        this.renderArrangement();
       },
     });
     this.lockNote = new PIXI.Container();
@@ -154,15 +155,18 @@ class DrawingModule {
       },
       {
         id: 'c',
-        title: 'Mitotic metaphase',
-        prompt: () => 'The zygote is in mitosis. Build its nucleus at metaphase.',
+        title: 'Mitosis: Metaphase',
+        prompt: () => 'The zygote is in mitosis. Build its nucleus at metaphase, then choose how the chromosomes are arranged on the metaphase plate.',
         start: [{ label: 'Zygote at metaphase' }],
         fixed: true,
+        metaphase: true,
+        arrangement: 'plate',
+        anaphase: 'sisters',
         expected: () => [nucleusFromCell(d().zygote, { replicated: true })],
       },
       {
         id: 'd',
-        title: 'Daughter cells',
+        title: 'Mitosis: Daughter cells',
         prompt: () => 'Mitosis has finished, giving two daughter cells. Build the nucleus of each daughter cell: the chromosomes, the correct number of chromatids, and the allele on every chromatid.',
         start: [{ label: 'Daughter cell 1' }, { label: 'Daughter cell 2' }],
         fixed: true,
@@ -170,26 +174,32 @@ class DrawingModule {
       },
       {
         id: 'e',
-        title: 'Metaphase I',
+        title: 'Meiosis: Metaphase I',
         prompt: () =>
-          `One of this individual’s germline stem cells enters meiosis. It will eventually produce a gamete with genotype ${d().target}. Build the nucleus at metaphase I, and mark the minimum number of crossovers needed with an X.`,
+          `One of this individual’s germline stem cells enters meiosis. It will eventually produce a gamete with genotype ${d().target}. Build the nucleus at metaphase I, choose how the chromosomes are arranged on the metaphase plate, and mark the minimum number of crossovers needed with an X.`,
         start: [{ label: 'Metaphase I' }],
         fixed: true,
+        metaphase: true,
+        arrangement: 'paired',
+        anaphase: 'homologs',
         crossovers: true,
         minCross: () => d().minCross,
         expected: () => [nucleusFromCell(d().zygote, { replicated: true, paired: true })],
       },
       {
         id: 'f',
-        title: 'Metaphase II',
-        prompt: () => 'Meiosis I has finished. Build each nucleus at metaphase II.',
+        title: 'Meiosis: Metaphase II',
+        prompt: () => 'Meiosis I has finished. Build each nucleus at metaphase II, then choose how the chromosomes are arranged on the metaphase plate.',
         start: [{ label: '' }],
         maxNuclei: 4,
+        metaphase: true,
+        arrangement: 'plate',
+        anaphase: 'sisters',
         expected: () => metaphaseIINuclei(d().result),
       },
       {
         id: 'g',
-        title: 'Gametes',
+        title: 'Meiosis: Gametes',
         prompt: () => 'Meiosis has finished. Build the nucleus of each gamete.',
         start: [{ label: '' }],
         maxNuclei: 6,
@@ -259,6 +269,7 @@ class DrawingModule {
     this.builder.fixedNuclei = !!s.fixed;
     this.builder.maxNuclei = s.maxNuclei ?? 4;
     this.builder.crossovers = !!s.crossovers;
+    this.builder.metaphase = !!s.metaphase;
     this.builder.root.visible = !s.list;
     if (!s.list) this.builder.setNuclei(this.answers[s.id] ?? s.start);
     this.applyLock();
@@ -498,8 +509,10 @@ class DrawingModule {
     if (s.id === 'a') this.renderZygote(body);
     else this.renderFollow(body);
     if (s.list) return this.renderList(body);
+    this.arrangeEl = h('div');
     this.tools = h('div', { class: 'tools' });
-    body.append(this.tools);
+    body.append(this.arrangeEl, this.tools);
+    this.renderArrangement();
     this.feedbackEl = h('div', { class: 'feedback' });
     body.append(
       h(
@@ -532,6 +545,35 @@ class DrawingModule {
     this.answers[s.id] = this.builder.getNuclei();
   }
 
+  // Metaphase questions: how the chromosomes line up on the plate, applied to every nucleus.
+  renderArrangement() {
+    if (!this.arrangeEl) return;
+    const el = clear(this.arrangeEl);
+    if (!this.step.metaphase) return;
+    const nuclei = this.builder.nuclei;
+    const current = nuclei.length && nuclei.every((n) => n.arrangement === nuclei[0].arrangement) ? nuclei[0].arrangement : null;
+    const choice = (value, text, sub) =>
+      h(
+        'button',
+        { class: `choice${current === value ? ' right' : ''}`, onclick: () => this.builder.setAllArrangements(value) },
+        h('b', {}, text),
+        h('div', { class: 'hint' }, sub),
+      );
+    el.append(
+      h(
+        'div',
+        { class: 'picker' },
+        h('div', { class: 'picker-label' }, 'Arrangement on the metaphase plate'),
+        h(
+          'div',
+          { class: 'choices' },
+          choice('plate', 'Line up single file on the plate', 'Each chromosome’s centromere sits on the plate; its sister chromatids face opposite poles.'),
+          choice('paired', 'Pair homologs across the plate', 'Homologs pair up side by side; each homolog faces one pole.'),
+        ),
+      ),
+    );
+  }
+
   // How to use the tray, as a short list next to the question.
   renderTools() {
     if (!this.tools || this.step.list) return;
@@ -539,7 +581,7 @@ class DrawingModule {
     const tips = [
       'Drag a chromosome from the tray into a nucleus: 1 chromatid, or 2 sister chromatids.',
       'Drag an allele onto each chromatid to label it (or tap a chromatid to cycle).',
-      'Drag one chromosome onto its homolog to pair them; drag it away to unpair.',
+      s.metaphase ? 'Choose the arrangement above, or drag one chromosome onto its homolog to pair them.' : 'Drag one chromosome onto its homolog to pair them; drag it away to unpair.',
       s.crossovers ? 'Drag the X onto a bivalent, at the height where the crossover happens. Tap an X to remove it.' : null,
       s.fixed ? null : 'Drag the nucleus piece up to add a cell; use × to remove one.',
       'Drag anything onto the bin to remove it.',
@@ -600,7 +642,7 @@ class DrawingModule {
       if (ok) this.setFollow([r.egg, r.sperm], 'gametes', { egg: r.egg, sperm: r.sperm });
     } else {
       const minCross = typeof s.minCross === 'function' ? s.minCross() : null;
-      const r = evaluate(student, s.expected(), { loci: [this.inst.L], matchBy: 'multiset', minCross });
+      const r = evaluate(student, s.expected(), { loci: [this.inst.L], matchBy: 'multiset', minCross, arrangement: s.arrangement ?? null });
       ok = r.ok;
       problem = r.problems[0];
     }
@@ -614,6 +656,12 @@ class DrawingModule {
     }
     this.renderStepper();
     this.renderFeedback();
+    // A correct metaphase plays the anaphase that follows it, on the student's own cell.
+    if (ok && s.anaphase) this.playAnaphase();
+  }
+
+  playAnaphase() {
+    if (this.step.anaphase) this.builder.anaphase(this.ctx.tween, this.step.anaphase);
   }
 
   // Turn a grader problem into a sentence for this question.
@@ -649,8 +697,16 @@ class DrawingModule {
         return p.expected === 1
           ? 'At this stage each chromosome is a single chromatid: either it has not replicated yet, or its sisters have already separated.'
           : 'At this stage each chromosome is replicated: two sister chromatids joined at the centromere.';
+      case 'not-arranged':
+        return 'Choose how the chromosomes line up at metaphase: single file on the plate, or homologs paired across the plate.';
+      case 'wrong-arrangement':
+        if (p.expected === 'paired')
+          return 'At metaphase I the homologs pair up side by side across the plate, so each homolog faces one pole. Choose “Pair homologs across the plate”.';
+        return step.id === 'c'
+          ? 'In mitosis homologs do not pair. Each replicated chromosome lines up on its own, centromere on the plate, with its sister chromatids facing opposite poles. Choose “Line up single file on the plate”.'
+          : 'At metaphase II there are no homolog pairs left: they separated at anaphase I. Each chromosome lines up with its centromere on the plate and its sisters facing opposite poles. Choose “Line up single file on the plate”.';
       case 'needs-pairing':
-        return 'At metaphase I the homologs pair up side by side as a bivalent. Drag one homolog onto the other to pair them.';
+        return 'At metaphase I every homolog is paired with its partner. Choose “Pair homologs across the plate”, or drag one homolog onto the other.';
       case 'no-pairing':
         return step.id === 'c'
           ? 'Homologs do not pair in mitosis: each replicated chromosome lines up on its own.'
@@ -693,10 +749,10 @@ class DrawingModule {
     return {
       a: `Right. Each gamete is haploid: one chromosome, one chromatid. An egg carrying ${this.follow.egg} and a sperm carrying ${this.follow.sperm} make the ${g(this.follow.alleles)} zygote that questions b to h follow.`,
       b: 'Right. Fertilization restores two homologs, one from each parent, each still a single chromatid.',
-      c: 'Right. Each homolog replicated into two identical sisters, and in mitosis they line up without pairing.',
+      c: 'Right. Each homolog replicated into two identical sisters, and in mitosis they line up single file on the plate without pairing. Watch anaphase: the sisters separate to opposite poles.',
       d: 'Right. Sisters separated, so each daughter is an exact copy of the zygote.',
-      e: `Right. The homologs pair as a bivalent. No crossover is needed: the ${this.derived().target} gamete just takes a chromatid from its homolog.`,
-      f: 'Right. The homologs went to different cells, each still carrying two sister chromatids.',
+      e: `Right. The homologs pair across the plate as a bivalent. No crossover is needed: the ${this.derived().target} gamete just takes a chromatid from its homolog. Watch anaphase I: the homologs separate while each keeps its two sisters.`,
+      f: 'Right. The homologs went to different cells, each still carrying two sister chromatids, lined up on the plate. Watch anaphase II: the sisters separate.',
       g: x === y ? `Right. Four haploid gametes, all carrying ${x}.` : 'Right. Four haploid gametes, two carrying each allele.',
     }[s.id];
   }
@@ -711,8 +767,15 @@ class DrawingModule {
     if (this.feedback.kind === 'bad' && (this.attempts[s.id] ?? 0) >= 2 && s.id !== 'a') {
       el.append(' ', h('button', { class: 'btn small', onclick: () => this.showAnswer() }, 'Show me'));
     }
-    if (this.feedback.kind === 'good' && this.index < this.steps.length - 1) {
-      el.append(h('div', { class: 'row', style: { marginTop: '8px' } }, h('button', { class: 'btn primary', onclick: () => this.go(this.index + 1) }, `Next: question ${this.steps[this.index + 1].id} ▶`)));
+    if (this.feedback.kind === 'good') {
+      el.append(
+        h(
+          'div',
+          { class: 'row', style: { marginTop: '8px' } },
+          s.anaphase ? h('button', { class: 'btn small', onclick: () => this.playAnaphase() }, '▶ Watch anaphase again') : null,
+          this.index < this.steps.length - 1 ? h('button', { class: 'btn primary', onclick: () => this.go(this.index + 1) }, `Next: question ${this.steps[this.index + 1].id} ▶`) : null,
+        ),
+      );
     }
   }
 
@@ -720,7 +783,7 @@ class DrawingModule {
     const s = this.step;
     const expected = s.expected();
     const labels = s.fixed ? s.start.map((x) => x.label) : expected.map(() => '');
-    this.builder.setNuclei(expected.map((n, i) => ({ ...n, label: labels[i] ?? '' })));
+    this.builder.setNuclei(expected.map((n, i) => ({ ...n, label: labels[i] ?? '', ...(s.arrangement ? { arrangement: s.arrangement } : {}) })));
     this.answers[s.id] = this.builder.getNuclei();
     this.revealed.add(s.id);
     this.feedback = { kind: 'bad', text: 'Here is one correct answer. Study it, then try the next question.' };

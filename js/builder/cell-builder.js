@@ -76,15 +76,58 @@ export class CellBuilder {
   setNuclei(nuclei) {
     this.cancelDrag();
     this.stopDemo();
-    this.nuclei = nuclei.map((n) => ({ id: uid(), label: n.label ?? '', items: (n.items ?? []).map(cloneItem) }));
+    this.nuclei = nuclei.map((n) => ({ id: uid(), label: n.label ?? '', arrangement: n.arrangement ?? null, items: (n.items ?? []).map(cloneItem) }));
     this.render();
   }
 
   getNuclei() {
-    return this.nuclei.map((n) => ({ label: n.label, items: n.items.map(strip) }));
+    return this.nuclei.map((n) => ({ label: n.label, ...(n.arrangement ? { arrangement: n.arrangement } : {}), items: n.items.map(strip) }));
+  }
+
+  // Metaphase arrangement of a nucleus: 'plate' puts every chromosome single file on the plate (homologs
+  // unpaired); 'paired' pairs homologs across the plate; null leaves them unarranged.
+  setArrangement(nucleus, arrangement) {
+    nucleus.arrangement = arrangement;
+    this.normalize(nucleus);
+    this.changed();
+  }
+
+  setAllArrangements(arrangement) {
+    for (const n of this.nuclei) {
+      n.arrangement = arrangement;
+      this.normalize(n);
+    }
+    this.changed();
+  }
+
+  // Keep pairing consistent with the arrangement: 'plate' unpairs, 'paired' pairs same-type chromosomes in order.
+  normalize(n) {
+    if (!this.metaphase) return;
+    if (n.arrangement === 'plate') {
+      n.items = n.items.flatMap((it) => (it.kind === 'bivalent' ? it.homologs : [it]));
+    } else if (n.arrangement === 'paired') {
+      const out = [];
+      const waiting = new Map();
+      for (const it of n.items) {
+        if (it.kind === 'bivalent') {
+          out.push(it);
+          continue;
+        }
+        const other = waiting.get(it.chrom);
+        if (other) {
+          waiting.delete(it.chrom);
+          out[out.indexOf(other)] = { id: uid(), kind: 'bivalent', chrom: it.chrom, homologs: [other, it], crossovers: [] };
+        } else {
+          waiting.set(it.chrom, it);
+          out.push(it);
+        }
+      }
+      n.items = out;
+    }
   }
 
   changed() {
+    for (const n of this.nuclei) this.normalize(n);
     this.render();
     // While the demo runs, its moves are not the student's answer.
     if (!this.locked) this.onChange(this.getNuclei());
@@ -179,6 +222,7 @@ export class CellBuilder {
     this.root.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.hits = { nuclei: [], chromatids: [], chromosomes: [], bivalents: [], trash: null, area: null };
     this.pendingBounds = [];
+    this.anaphaseUnits = [];
     const rects = this.nucleusRects();
     const minDim = Math.min(...rects.map((r) => Math.min(r.rx * 2, r.ry * 2)), 420);
     this.chromLen = Math.max(60, Math.min(200, minDim * 0.62));
@@ -226,21 +270,46 @@ export class CellBuilder {
       this.root.addChild(hint);
     }
 
+    // At metaphase the nucleus shows the plate (dashed) between two spindle poles.
+    const poles = [
+      { x: cx - rx * 0.9, y: cy },
+      { x: cx + rx * 0.9, y: cy },
+    ];
+    if (this.metaphase) {
+      const plate = new PIXI.Graphics();
+      for (let y = cy - ry * 0.86; y < cy + ry * 0.86; y += 12) plate.moveTo(cx, y).lineTo(cx, Math.min(y + 6, cy + ry * 0.86));
+      plate.stroke({ width: 2, color: PALETTE.spindle, alpha: 0.9 });
+      for (const p of poles) plate.circle(p.x, p.y, 5).fill(PALETTE.spindle);
+      this.root.addChild(plate);
+    }
+
+    // Unarranged items sit in a row. Arranged items stack single file down the plate, centered on it: a lone
+    // chromosome straddles the plate with its sisters facing opposite poles; a bivalent puts one homolog on
+    // each side.
     const W = this.w;
+    const stacked = this.metaphase && n.arrangement;
     const widths = n.items.map((it) => this.itemWidth(it));
-    const gap = W * 1.8;
-    const total = widths.reduce((s, x) => s + x, 0) + gap * Math.max(0, n.items.length - 1);
-    const scale = Math.min(1, (rx * 1.7) / Math.max(1, total), (ry * 1.7) / (this.chromLen + 30));
+    const heights = n.items.map((it) => this.chromLen + (it.kind === 'bivalent' ? 20 : 0));
+    const gap = stacked ? W * 0.9 : W * 1.8;
+    const along = stacked ? heights : widths;
+    const total = along.reduce((s, x) => s + x, 0) + gap * Math.max(0, n.items.length - 1);
+    const across = stacked ? Math.max(1, ...widths) : this.chromLen + 30;
+    const scale = stacked
+      ? Math.min(1, (ry * 1.6) / Math.max(1, total), (rx * 1.5) / across)
+      : Math.min(1, (rx * 1.7) / Math.max(1, total), (ry * 1.7) / across);
     const row = new PIXI.Container();
     row.position.set(cx, cy);
     row.scale.set(scale);
     this.root.addChild(row);
-    let x = -total / 2;
+    let at = -total / 2;
     n.items.forEach((it, i) => {
       const view = it.kind === 'bivalent' ? this.drawBivalent(it, n) : this.drawChromosome(it, { nucleus: n });
-      view.position.set(x + widths[i] / 2, 0);
+      if (stacked) view.position.set(0, at + along[i] / 2);
+      else view.position.set(at + along[i] / 2, 0);
       row.addChild(view);
-      x += widths[i] + gap;
+      at += along[i] + gap;
+      // How far a separating piece may travel (in row units) before reaching its pole.
+      this.anaphaseUnits.push({ nucleus: n, item: it, view, poles, reach: (rx * 0.68) / scale });
     });
     // Bounds can only be read once the views are placed in the row.
     this.pendingBounds?.forEach((fn) => fn());
@@ -251,12 +320,11 @@ export class CellBuilder {
     const c = new PIXI.Container();
     const width = this.itemWidth(it);
     const L = this.chromLen;
-    c.addChild(
-      new PIXI.Graphics()
-        .roundRect(-width / 2, -L / 2 - 10, width, L + 20, this.w)
-        .fill({ color: PALETTE.ochre, alpha: 0.12 })
-        .stroke({ width: 1.5, color: PALETTE.cellEdge, alpha: 0.9 }),
-    );
+    c.pill = new PIXI.Graphics()
+      .roundRect(-width / 2, -L / 2 - 10, width, L + 20, this.w)
+      .fill({ color: PALETTE.ochre, alpha: 0.12 })
+      .stroke({ width: 1.5, color: PALETTE.cellEdge, alpha: 0.9 });
+    c.addChild(c.pill);
     const w0 = this.chromosomeWidth(it.homologs[0]);
     const w1 = this.chromosomeWidth(it.homologs[1]);
     const inner = this.w * 0.5;
@@ -265,6 +333,7 @@ export class CellBuilder {
     h0.x = -inner / 2 - w0 / 2;
     h1.x = inner / 2 + w1 / 2;
     c.addChild(h0, h1);
+    c.homologViews = [h0, h1];
 
     const def = this.def(it.chrom);
     const ivs = this.intervals(it.chrom);
@@ -303,9 +372,12 @@ export class CellBuilder {
     const y = (pos) => (pos / def.length - 0.5) * L;
     const cy = y(def.centromere);
     const neck = W * 0.22;
+    c.chromatidViews = [];
+    c.centromereY = cy;
 
     chrom.chromatids.forEach((ct, i) => {
       const view = new PIXI.Container();
+      c.chromatidViews.push(view);
       view.x = -width / 2 + W / 2 + i * W * 1.2;
       const body = new PIXI.Graphics();
       body.roundRect(-W / 2, -L / 2, W, cy + L / 2 - neck, W / 2).fill(CHROMATID_FILL).stroke({ width: 1.5, color: CHROMATID_EDGE });
@@ -332,8 +404,9 @@ export class CellBuilder {
       c.addChild(view);
     });
 
-    if (n === 2) c.addChild(new PIXI.Graphics().roundRect(-W * 0.6, cy - W * 0.3, W * 1.2, W * 0.6, W * 0.3).fill(CENTROMERE));
-    else c.addChild(new PIXI.Graphics().circle(0, cy, W * 0.22).fill(CENTROMERE));
+    // Sisters are held together at the centromere; anaphase hides this junction as they separate.
+    c.junction = n === 2 ? new PIXI.Graphics().roundRect(-W * 0.6, cy - W * 0.3, W * 1.2, W * 0.6, W * 0.3).fill(CENTROMERE) : new PIXI.Graphics().circle(0, cy, W * 0.22).fill(CENTROMERE);
+    c.addChild(c.junction);
 
     if (interactive) this.pendingBounds.push(() => this.hits.chromosomes.push({ chrom, bivalent, nucleus, view: c, bounds: c.getBounds() }));
     return c;
@@ -418,6 +491,68 @@ export class CellBuilder {
     t.anchor.set(0.5);
     c.addChild(t);
     return c;
+  }
+
+  // ---- anaphase ----
+
+  // Animate anaphase on the student's own (correct) metaphase cell, then put it back.
+  //   'sisters':  each chromosome's sister chromatids pull apart to opposite poles (mitosis, meiosis II)
+  //   'homologs': each bivalent's homologs pull apart, sisters staying together (meiosis I)
+  async anaphase(tween, mode) {
+    if (this.readOnly || this.locked) return;
+    this.stopDemo();
+    const token = this.demoToken;
+    const alive = () => token === this.demoToken && !this.root.destroyed;
+    this.locked = true;
+    const fibers = new PIXI.Graphics();
+    const caption = new PIXI.Container();
+    this.overlay.addChild(fibers, caption);
+    const t = textLabel(
+      mode === 'homologs' ? 'Anaphase I: homologs separate; sister chromatids stay together' : 'Anaphase: sister chromatids separate to opposite poles',
+      15,
+      { fill: 0xffffff, fontWeight: '800' },
+    );
+    t.anchor.set(0.5);
+    caption.addChild(new PIXI.Graphics().roundRect(-t.width / 2 - 14, -t.height / 2 - 8, t.width + 28, t.height + 16, 12).fill({ color: PALETTE.ink, alpha: 0.88 }), t);
+    caption.position.set(this.rect.x + this.rect.w / 2, this.rect.y + this.rect.h - this.trayHeight() - t.height / 2 - 18);
+
+    // Each moving piece is pulled toward one pole by its kinetochore.
+    const movers = [];
+    for (const u of this.anaphaseUnits) {
+      const pair = mode === 'homologs' ? u.view.homologViews : u.view.chromatidViews?.length === 2 ? u.view.chromatidViews : null;
+      if (!pair) continue;
+      // The pair is no longer held together: sisters lose their junction, homologs their pairing outline.
+      if (mode === 'sisters') u.view.junction.alpha = 0;
+      else u.view.pill.alpha = 0;
+      pair.forEach((v, side) => {
+        const cyLocal = mode === 'homologs' ? v.centromereY : u.view.centromereY;
+        movers.push({ view: v, pole: u.poles[side], cyLocal, to: side === 0 ? -u.reach : u.reach });
+      });
+    }
+    const drawFibers = () => {
+      if (fibers.destroyed) return;
+      fibers.clear();
+      for (const m of movers) {
+        if (m.view.destroyed) continue;
+        const k = m.view.toGlobal(new PIXI.Point(0, m.cyLocal));
+        fibers.moveTo(m.pole.x, m.pole.y).lineTo(k.x, k.y).stroke({ width: 1.3, color: PALETTE.spindle, alpha: 0.9 });
+      }
+    };
+    tween.ticker.add(drawFibers);
+    try {
+      await tween.wait(500);
+      if (!alive()) return;
+      await Promise.all(movers.map((m) => tween.to(m.view, { x: m.to }, { duration: 1600, ease: 'inOutCubic' })));
+      if (!alive()) return;
+      await tween.wait(1400);
+    } finally {
+      tween.ticker.remove(drawFibers);
+      if (token === this.demoToken && !this.root.destroyed) {
+        this.overlay.removeChildren().forEach((c) => c.destroy({ children: true }));
+        this.locked = false;
+        this.render();
+      }
+    }
   }
 
   // ---- guided demo ----
@@ -703,9 +838,13 @@ export class CellBuilder {
           this.detach(payload.chrom);
           const at = this.locate(t.chrom);
           at.nucleus.items.splice(at.index, 1, { id: uid(), kind: 'bivalent', chrom: t.chrom.chrom, homologs: [t.chrom, payload.chrom], crossovers: [] });
+          // Pairing by hand at metaphase means the homologs are paired across the plate.
+          if (this.metaphase) at.nucleus.arrangement = 'paired';
         } else if (t.kind === 'nucleus') {
           const at = this.locate(payload.chrom);
           if (at.nucleus === t.nucleus && !at.bivalent) return this.render();
+          // Pulling a homolog out of its pair undoes a "paired" arrangement, so it is not re-paired at once.
+          if (at.bivalent && at.nucleus.arrangement === 'paired') at.nucleus.arrangement = null;
           this.detach(payload.chrom);
           t.nucleus.items.push(payload.chrom);
         }

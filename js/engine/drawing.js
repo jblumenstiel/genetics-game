@@ -1,7 +1,8 @@
 // Drawing models: the cells a student builds, the cells the engine says they should be, and the grader that
 // compares them.
 //
-//   nucleus:    { label, items: [item] }
+//   nucleus:    { label, items: [item], arrangement? }   arrangement at metaphase: 'plate' (single file on the
+//               metaphase plate) or 'paired' (homologs paired across the plate); absent means not arranged
 //   chromosome: { kind: 'chromosome', chrom, chromatids: [{ alleles: { [locusId]: allele | null } }] }
 //   bivalent:   { kind: 'bivalent', chrom, homologs: [chromosome, chromosome], crossovers: [{ interval }] }
 //
@@ -101,7 +102,8 @@ export function minCrossovers(target, homologs, loci) {
 // { code, ...details } in priority order; the module turns codes into sentences for its stage.
 //   matchBy: 'label' pairs nuclei by label (egg vs sperm); 'multiset' accepts any order.
 //   minCross: if set, the number of crossovers marked must equal it.
-export function evaluate(student, expected, { loci, matchBy = 'multiset', minCross = null } = {}) {
+//   arrangement: if set ('plate' or 'paired'), every nucleus must be arranged that way at metaphase.
+export function evaluate(student, expected, { loci, matchBy = 'multiset', minCross = null, arrangement = null } = {}) {
   const problems = [];
   const done = () => ({ ok: problems.length === 0, problems });
 
@@ -134,6 +136,14 @@ export function evaluate(student, expected, { loci, matchBy = 'multiset', minCro
   if (all.some((c) => c.chromatids.length !== expChromatids)) {
     problems.push({ code: 'chromatid-count', expected: expChromatids });
     return done();
+  }
+
+  if (arrangement) {
+    const off = student.find((n) => n.arrangement !== arrangement);
+    if (off) {
+      problems.push(off.arrangement ? { code: 'wrong-arrangement', expected: arrangement, got: off.arrangement } : { code: 'not-arranged', expected: arrangement });
+      return done();
+    }
   }
 
   const studentPaired = student.some((n) => n.items.some((i) => i.kind === 'bivalent'));

@@ -58,6 +58,18 @@ test('mitosis daughters: two identical nuclei', () => {
   assert.deepEqual(codes(evaluate(split, expected, { loci: LOCI })), ['content']);
 });
 
+test('metaphase arrangement: single file on the plate vs homologs paired across it', () => {
+  const mitotic = [nucleusFromCell(zygote, { replicated: true })];
+  const plate = { arrangement: 'plate', items: [chrom('B', 'B'), chrom('b', 'b')] };
+  assert.ok(evaluate([plate], mitotic, { loci: LOCI, arrangement: 'plate' }).ok);
+  assert.deepEqual(codes(evaluate([{ ...plate, arrangement: undefined }], mitotic, { loci: LOCI, arrangement: 'plate' })), ['not-arranged']);
+  const paired = { arrangement: 'paired', items: [biv(chrom('B', 'B'), chrom('b', 'b'))] };
+  const [p] = evaluate([paired], mitotic, { loci: LOCI, arrangement: 'plate' }).problems;
+  assert.deepEqual(p, { code: 'wrong-arrangement', expected: 'plate', got: 'paired' });
+  const meiotic = [nucleusFromCell(zygote, { replicated: true, paired: true })];
+  assert.ok(evaluate([paired], meiotic, { loci: LOCI, arrangement: 'paired', minCross: 0 }).ok);
+});
+
 test('metaphase I needs a bivalent and no crossovers for one locus', () => {
   const expected = [nucleusFromCell(zygote, { replicated: true, paired: true })];
   assert.ok(evaluate([{ items: [biv(chrom('b', 'b'), chrom('B', 'B'))] }], expected, { loci: LOCI, minCross: 0 }).ok);
