@@ -552,7 +552,7 @@ export class CellBuilder {
   }
 
   startDrag(e, payload, makeGhost) {
-    if (this.readOnly || this.drag || this.locked) return;
+    if (this.readOnly || this.drag || this.locked || this.disabled) return;
     e.stopPropagation();
     const start = e.global.clone();
     this.drag = { payload, start, point: start, moved: false, makeGhost, ghost: null };

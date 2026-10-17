@@ -82,6 +82,26 @@ test('minimum crossovers to spell a gamete', () => {
   assert.equal(minCrossovers({ A: 'A', B: 'b', C: 'C' }, homologs, ['A', 'B', 'C']), 2);
 });
 
+test('genotype options: three possible, the rest impossible with reasons', async () => {
+  const { genotypeOptions } = await import('../js/engine/genotypes.js');
+  const opts = genotypeOptions(['B', 'b'], 'D', makeRng(3));
+  assert.deepEqual(opts.filter((o) => o.possible).map((o) => o.text).sort(), ['B/B', 'B/b', 'b/b']);
+  const impossible = opts.filter((o) => !o.possible);
+  assert.equal(impossible.length, 5);
+  assert.ok(impossible.every((o) => o.reason.length > 40));
+  assert.ok(impossible.some((o) => o.text === 'B ; b'));
+});
+
+test('zygotes must be possible from the parents', async () => {
+  const { zygoteFromParents } = await import('../js/engine/genotypes.js');
+  assert.ok(zygoteFromParents(['B', 'b'], ['B', 'b'], ['b', 'b']).ok);
+  assert.ok(zygoteFromParents(['b', 'b'], ['B', 'b'], ['b', 'b']).ok);
+  const no = zygoteFromParents(['B', 'B'], ['B', 'b'], ['b', 'b']);
+  assert.equal(no.ok, false);
+  assert.match(no.reason, /father \(b\/b\) can pass on only b/);
+  assert.match(no.reason, /^To be B\/B, the zygote needs B from both parents/);
+});
+
 test('frequencies parse from fractions, decimals and percents', () => {
   assert.equal(parseFrequency('1/2'), 0.5);
   assert.equal(parseFrequency(' 0.25 '), 0.25);
