@@ -109,7 +109,9 @@ export function evaluate(student, expected, { loci, matchBy = 'multiset', minCro
   for (const [s, e] of pairs) {
     const want = chromosomeCount(e);
     const got = chromosomeCount(s);
-    if (got !== want) problems.push({ code: 'chromosome-count', label: s.label, expected: want, got });
+    // Chromatids are reported too, so feedback can explain that chromosomes are counted by centromeres.
+    const chromatids = chromosomesOf(s).reduce((n, c) => n + c.chromatids.length, 0);
+    if (got !== want) problems.push({ code: 'chromosome-count', label: s.label, expected: want, got, chromatids });
   }
   if (problems.length) return done();
 

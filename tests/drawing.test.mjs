@@ -33,6 +33,9 @@ test('zygote has two unreplicated homologs', () => {
   assert.ok(evaluate([{ label: 'Zygote', items: [chrom('b'), chrom('B')] }], expected, { loci: LOCI }).ok);
   assert.deepEqual(codes(evaluate([{ label: 'Zygote', items: [chrom('B')] }], expected, { loci: LOCI })), ['chromosome-count']);
   assert.deepEqual(codes(evaluate([{ label: 'Zygote', items: [chrom('B'), chrom(null)] }], expected, { loci: LOCI })), ['unlabeled']);
+  // One replicated chromosome: two chromatids, but one centromere, so one chromosome.
+  const [p] = evaluate([{ label: 'Zygote', items: [chrom('B', 'b')] }], expected, { loci: LOCI }).problems;
+  assert.deepEqual({ code: p.code, got: p.got, chromatids: p.chromatids }, { code: 'chromosome-count', got: 1, chromatids: 2 });
 });
 
 test('mitotic metaphase: replicated, unpaired, identical sisters', () => {

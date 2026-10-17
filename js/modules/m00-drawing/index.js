@@ -163,9 +163,9 @@ class DrawingModule {
       {
         id: 'd',
         title: 'Daughter cells',
-        prompt: () => 'Mitosis has finished. Build the nuclei of the daughter cells. Add a nucleus for each daughter.',
-        start: [{ label: '' }],
-        maxNuclei: 4,
+        prompt: () => 'Mitosis has finished, giving two daughter cells. Build the nucleus of each daughter cell: the chromosomes, the correct number of chromatids, and the allele on every chromatid.',
+        start: [{ label: 'Daughter cell 1' }, { label: 'Daughter cell 2' }],
+        fixed: true,
         expected: () => [nucleusFromCell(d().zygote), nucleusFromCell(d().zygote)],
       },
       {
@@ -634,10 +634,17 @@ class DrawingModule {
           f: `Meiosis I splits one cell into two, so there are two nuclei at metaphase II. You have ${p.got}.`,
           g: `Two meiotic divisions turn one cell into four gametes. You have ${p.got}.`,
         }[step.id] ?? `There should be ${p.expected} nuclei here.`;
-      case 'chromosome-count':
-        if (step.id === 'a' || step.id === 'g' || step.id === 'f')
-          return `${p.label || 'Each nucleus'} is haploid: it should hold ${one(p.expected)} (one copy of this chromosome), not ${p.got}.`;
-        return `${p.label || 'Each nucleus'} should hold ${one(p.expected)}, one from each parent. You have ${p.got}.`;
+      case 'chromosome-count': {
+        const who = p.label || 'Each nucleus';
+        const haploid = ['a', 'f', 'g'].includes(step.id);
+        const should = haploid ? `${who} is haploid: it should hold ${one(p.expected)} (one copy of this chromosome)` : `${who} should hold ${one(p.expected)}, one from each parent`;
+        // Students often count sister chromatids as separate chromosomes. Chromosomes are counted by centromeres.
+        if (p.chromatids > p.got) {
+          const whose = p.got === 1 ? 'those are the sister chromatids of a single homolog' : `they belong to only ${one(p.got)}`;
+          return `${should}. You have ${p.chromatids} chromatids, but ${whose}. Chromosomes are counted by centromeres: two strands joined at one centromere are sister chromatids of one chromosome.`;
+        }
+        return `${should}. You have ${p.got}.`;
+      }
       case 'chromatid-count':
         return p.expected === 1
           ? 'At this stage each chromosome is a single chromatid: either it has not replicated yet, or its sisters have already separated.'
@@ -656,7 +663,7 @@ class DrawingModule {
         return {
           b: `The zygote gets one chromosome from the egg and one from the sperm. This individual is ${g(this.follow.alleles)}.`,
           c: 'Replication copies each chromosome exactly. Check the alleles on each chromosome.',
-          d: 'Each daughter gets one sister chromatid of every chromosome, so both daughters match the zygote.',
+          d: `Each daughter gets one sister chromatid of every chromosome, so both daughters match the zygote (${g(this.follow.alleles)}).`,
           e: `The bivalent should hold the two homologs this individual inherited (${g(this.follow.alleles)}).`,
           f: 'At anaphase I the homologs separated. Which alleles end up together in each nucleus?',
           g: 'Each gamete gets one chromatid. How many gametes carry each allele?',
