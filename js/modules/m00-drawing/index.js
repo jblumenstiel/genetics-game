@@ -273,6 +273,28 @@ class DrawingModule {
     this.renderBody();
     this.layout();
     this.ctx.panel.scrollTop = 0;
+    if (i === 0 && !this.demoSeen()) setTimeout(() => this.playDemo(), 500);
+  }
+
+  // The how-to animation plays once per browser; the panel has a button to replay it.
+  demoSeen() {
+    try {
+      return localStorage.getItem('gorby.buildDemoSeen') === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  async playDemo() {
+    if (this.step.list || this.destroyed) return;
+    const finished = await this.builder.demo(this.ctx.tween);
+    if (finished) {
+      try {
+        localStorage.setItem('gorby.buildDemoSeen', '1');
+      } catch {
+        // Private mode or blocked storage: the demo will simply play again next time.
+      }
+    }
   }
 
   resize() {
@@ -340,7 +362,10 @@ class DrawingModule {
       s.fixed ? null : 'Drag the nucleus piece up to add a cell; use × to remove one.',
       'Drag anything onto the bin to remove it.',
     ].filter(Boolean);
-    clear(this.tools).append(h('ul', { class: 'tips' }, tips.map((t) => h('li', {}, t))));
+    clear(this.tools).append(
+      h('ul', { class: 'tips' }, tips.map((t) => h('li', {}, t))),
+      h('button', { class: 'btn small', onclick: () => this.playDemo() }, '▶ Watch how it works'),
+    );
   }
 
   startOver() {
@@ -466,6 +491,7 @@ class DrawingModule {
   }
 
   destroy() {
+    this.destroyed = true;
     this.builder.destroy();
     this.parents.destroy();
     this.scene.destroy({ children: true });

@@ -54,8 +54,11 @@ export class CellBuilder {
     this.readOnly = readOnly;
     this.crossovers = crossovers;
     this.root = new PIXI.Container();
-    container.addChild(this.root);
+    this.overlay = new PIXI.Container();
+    this.overlay.eventMode = 'none';
+    container.addChild(this.root, this.overlay);
     this.nuclei = [];
+    this.demoToken = 0;
     this.rect = { x: 0, y: 0, w: 400, h: 300 };
     this.onMove = (e) => this.dragMove(e);
     this.onUp = (e) => this.dragEnd(e);
@@ -63,13 +66,16 @@ export class CellBuilder {
 
   destroy() {
     this.cancelDrag();
+    this.stopDemo();
     this.root.destroy({ children: true });
+    this.overlay.destroy({ children: true });
   }
 
   // ---- model ----
 
   setNuclei(nuclei) {
     this.cancelDrag();
+    this.stopDemo();
     this.nuclei = nuclei.map((n) => ({ id: uid(), label: n.label ?? '', items: (n.items ?? []).map(cloneItem) }));
     this.render();
   }
@@ -80,7 +86,8 @@ export class CellBuilder {
 
   changed() {
     this.render();
-    this.onChange(this.getNuclei());
+    // While the demo runs, its moves are not the student's answer.
+    if (!this.locked) this.onChange(this.getNuclei());
   }
 
   def(chrom) {
@@ -344,6 +351,14 @@ export class CellBuilder {
     const tray = new PIXI.Graphics().roundRect(x, y, w, th, 14).fill(PALETTE.panel).stroke({ width: 1.5, color: PALETTE.line });
     this.root.addChild(tray);
 
+    // A tab on the tray's top edge saying what it is for.
+    const tab = textLabel('Drag from here ↓', 12, { fill: 0xffffff, fontWeight: '800' });
+    tab.anchor.set(0, 0.5);
+    const tabBg = new PIXI.Graphics().roundRect(x + 12, y - 11, tab.width + 18, 22, 11).fill(PALETTE.sage);
+    tab.position.set(x + 21, y);
+    this.root.addChild(tabBg, tab);
+    this.trayPieces = [];
+
     const def = this.karyotype[0];
     const iconL = th * 0.5;
     const iconW = Math.max(8, iconL * 0.13);
@@ -372,6 +387,7 @@ export class CellBuilder {
       holder.hitArea = new PIXI.Rectangle(-slotW / 2 + 2, -th * 0.4, slotW - 4, th * 0.8);
       holder.on('pointerdown', (e) => this.startDrag(e, p.payload, p.icon));
       this.root.addChild(holder);
+      this.trayPieces.push({ payload: p.payload, icon: p.icon, x: cx, y: holder.y });
       const cap = textLabel(p.caption, 11, { fill: PALETTE.inkSoft, fontWeight: '700' });
       cap.anchor.set(0.5, 0);
       cap.position.set(cx, y + th * 0.8);
@@ -404,6 +420,129 @@ export class CellBuilder {
     return c;
   }
 
+  // ---- guided demo ----
+
+  pointerHand() {
+    const g = new PIXI.Graphics();
+    g.poly([0, 0, 0, 24, 6.5, 18.5, 11, 28, 15.5, 26, 11, 16.5, 19, 16.5]).fill(0xffffff).stroke({ width: 2, color: PALETTE.ink, join: 'round' });
+    g.scale.set(1.25);
+    return g;
+  }
+
+  stopDemo() {
+    this.demoToken++;
+    this.locked = false;
+    this.overlay.removeChildren().forEach((c) => c.destroy({ children: true }));
+  }
+
+  // A pointer drags a chromosome into the first nucleus, labels it with an allele, then drops it on the bin, with
+  // a caption for each move. The workspace is put back afterwards. Resolves false if interrupted.
+  async demo(tween) {
+    if (this.readOnly || !this.nuclei.length || !this.trayPieces?.length) return false;
+    this.stopDemo();
+    const token = this.demoToken;
+    const alive = () => token === this.demoToken && !this.root.destroyed;
+    const saved = this.getNuclei();
+    this.locked = true;
+
+    const hand = this.pointerHand();
+    const caption = new PIXI.Container();
+    this.overlay.addChild(caption, hand);
+    const say = (text) => {
+      if (!alive()) return Promise.resolve();
+      caption.removeChildren().forEach((c) => c.destroy());
+      const t = textLabel(text, 15, { fill: 0xffffff, fontWeight: '800' });
+      t.anchor.set(0.5);
+      const bg = new PIXI.Graphics().roundRect(-t.width / 2 - 14, -t.height / 2 - 8, t.width + 28, t.height + 16, 12).fill({ color: PALETTE.ink, alpha: 0.88 });
+      caption.addChild(bg, t);
+      // Just above the tray, where the pieces come from.
+      caption.position.set(this.rect.x + this.rect.w / 2, this.rect.y + this.rect.h - this.trayHeight() - t.height / 2 - 18);
+      return tween.wait(450);
+    };
+    const glide = (x, y, duration = 900) => (alive() ? tween.to(hand, { x, y }, { duration }) : Promise.resolve());
+    const press = async () => {
+      if (!alive()) return;
+      const ring = new PIXI.Graphics().circle(0, 0, 18).stroke({ width: 3, color: PALETTE.ochre });
+      ring.position.set(hand.x, hand.y);
+      this.overlay.addChild(ring);
+      await tween.to(ring, { alpha: 0 }, { duration: 380 });
+      if (!ring.destroyed) ring.destroy();
+    };
+    const carry = async (ghost, x, y) => {
+      if (!alive()) return ghost.destroy({ children: true });
+      ghost.alpha = 0.9;
+      ghost.position.set(hand.x, hand.y);
+      this.overlay.addChildAt(ghost, 0);
+      const follow = () => {
+        if (!ghost.destroyed && !hand.destroyed) ghost.position.set(hand.x, hand.y);
+      };
+      tween.ticker.add(follow);
+      await glide(x, y, 1000);
+      tween.ticker.remove(follow);
+      if (!ghost.destroyed) ghost.destroy({ children: true });
+    };
+
+    try {
+      const n = this.nuclei[0];
+      const nr = this.hits.nuclei.find((r) => r.nucleus === n);
+      hand.position.set(nr.cx + nr.rx * 0.4, nr.cy);
+      hand.alpha = 0;
+      await tween.to(hand, { alpha: 1 }, { duration: 300 });
+
+      await say('1. Drag a chromosome from the tray into a nucleus');
+      const piece = this.trayPieces.find((p) => p.payload.type === 'new-chrom') ?? this.trayPieces[0];
+      await glide(piece.x, piece.y);
+      await press();
+      if (!alive()) return false;
+      await carry(piece.icon(), nr.cx, nr.cy);
+      if (!alive()) return false;
+      this.drop(piece.payload, { kind: 'nucleus', nucleus: n }, { x: nr.cx, y: nr.cy });
+      await tween.wait(800);
+      if (!alive()) return false;
+
+      await say('2. Drag an allele onto a chromatid to label it');
+      if (!alive()) return false;
+      const chrom = n.items[n.items.length - 1];
+      const chip = this.trayPieces.find((p) => p.payload.type === 'allele');
+      const hit = this.hits.chromatids.find((c) => c.chrom === chrom);
+      const def = this.def(chrom.chrom);
+      const band = { x: hit.bounds.x + hit.bounds.width / 2, y: hit.bounds.y + (def.loci[0].pos / def.length) * hit.bounds.height };
+      await glide(chip.x, chip.y);
+      await press();
+      if (!alive()) return false;
+      await carry(chip.icon(), band.x, band.y);
+      if (!alive()) return false;
+      this.drop(chip.payload, { kind: 'chromatid', ...hit }, band);
+      await tween.wait(1000);
+      if (!alive()) return false;
+
+      await say('3. Drag anything onto the bin to remove it');
+      if (!alive()) return false;
+      const whole = this.hits.chromosomes.find((c) => c.chrom === chrom);
+      const center = { x: whole.bounds.x + whole.bounds.width / 2, y: whole.bounds.y + whole.bounds.height * 0.7 };
+      await glide(center.x, center.y);
+      await press();
+      if (!alive()) return false;
+      const s = whole.view.worldTransform.a;
+      whole.view.alpha = 0.25;
+      const trash = this.hits.trash;
+      await carry(this.drawChromosome(chrom, { interactive: false, W: this.w * s, L: this.chromLen * s }), trash.x + trash.width / 2, trash.y + trash.height * 0.4);
+      if (!alive()) return false;
+      this.drop({ type: 'move-chrom', chrom }, { kind: 'trash' }, {});
+
+      await say('Your turn!');
+      await tween.to(hand, { alpha: 0 }, { duration: 1000 });
+      return alive();
+    } finally {
+      if (token === this.demoToken && !this.root.destroyed) {
+        this.overlay.removeChildren().forEach((c) => c.destroy({ children: true }));
+        this.locked = false;
+        this.nuclei = saved.map((m) => ({ id: uid(), label: m.label ?? '', items: m.items.map(cloneItem) }));
+        this.changed();
+      }
+    }
+  }
+
   // ---- dragging ----
 
   toPoint(e) {
@@ -413,7 +552,7 @@ export class CellBuilder {
   }
 
   startDrag(e, payload, makeGhost) {
-    if (this.readOnly || this.drag) return;
+    if (this.readOnly || this.drag || this.locked) return;
     e.stopPropagation();
     const start = e.global.clone();
     this.drag = { payload, start, point: start, moved: false, makeGhost, ghost: null };
