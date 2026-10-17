@@ -175,7 +175,7 @@ function explain(step, p, inst) {
         g: 'Each gamete gets one chromatid. How many gametes carry each allele?',
       }[step.id];
     case 'crossovers-extra':
-      return `No crossover is needed. With one locus, a ${inst.target} gamete simply gets a chromatid from the homolog carrying ${inst.target}. Remove the X.`;
+      return `No crossover is needed. With one locus, a gamete carrying ${inst.target} simply gets a chromatid from the homolog carrying ${inst.target}. Remove the X (tap it, or drag it to the bin).`;
     case 'crossovers-missing':
       return `This gamete needs at least ${p.min} crossover${p.min === 1 ? '' : 's'}.`;
     default:
@@ -266,6 +266,7 @@ class DrawingModule {
     const s = this.step;
     this.builder.fixedNuclei = !!s.fixed;
     this.builder.maxNuclei = s.maxNuclei ?? 4;
+    this.builder.crossovers = !!s.crossovers;
     this.builder.root.visible = !s.list;
     if (!s.list) this.builder.setNuclei(this.answers[s.id] ?? s.start);
     this.renderStepper();
@@ -294,10 +295,7 @@ class DrawingModule {
     body.append(h('div', { class: 'stage-name' }, `Question ${s.id}`), h('h2', {}, s.title), h('p', {}, s.prompt));
     if (s.list) return this.renderList(body);
     this.tools = h('div', { class: 'tools' });
-    body.append(
-      h('p', { class: 'hint' }, 'Tap a nucleus to choose where new chromosomes go. Tap a chromosome to select it, then tap its chromatids to set alleles. Drag a chromosome to another nucleus, or onto its homolog to pair them.'),
-      this.tools,
-    );
+    body.append(this.tools);
     this.feedbackEl = h('div', { class: 'feedback' });
     body.append(
       h(
@@ -305,6 +303,7 @@ class DrawingModule {
         { class: 'row' },
         h('button', { class: 'btn primary', onclick: () => this.check() }, 'Check'),
         this.prevAnswer() ? h('button', { class: 'btn', onclick: () => this.copyPrevious() }, `Start from my answer to ${this.prevAnswer().id}`) : null,
+        h('button', { class: 'btn small', onclick: () => this.startOver() }, 'Start over'),
       ),
       this.feedbackEl,
     );
@@ -329,49 +328,26 @@ class DrawingModule {
     this.answers[s.id] = this.builder.getNuclei();
   }
 
+  // How to use the tray, as a short list next to the question.
   renderTools() {
     if (!this.tools || this.step.list) return;
-    const b = this.builder;
     const s = this.step;
-    const biv = b.selectedBivalent();
-    const selItem = b.selectedItem();
-    const tools = clear(this.tools);
-    tools.append(
-      h(
-        'div',
-        { class: 'row' },
-        h('button', { class: 'btn small', onclick: () => b.addChromosome(false) }, '+ Chromosome (1 chromatid)'),
-        h('button', { class: 'btn small', onclick: () => b.addChromosome(true) }, '+ Replicated chromosome (2 chromatids)'),
-      ),
-      h(
-        'div',
-        { class: 'row' },
-        s.fixed ? null : h('button', { class: 'btn small', disabled: b.nuclei.length >= b.maxNuclei, onclick: () => b.addNucleus() }, '+ Nucleus'),
-        selItem
-          ? h('button', { class: 'btn small', onclick: () => b.deleteSelected() }, 'Delete chromosome')
-          : s.fixed
-            ? null
-            : h('button', { class: 'btn small', disabled: !b.canRemoveNucleus(), onclick: () => b.deleteSelected() }, 'Remove nucleus'),
-        biv ? h('button', { class: 'btn small', onclick: () => b.unpair() }, 'Unpair') : null,
-      ),
-    );
-    if (s.crossovers) {
-      tools.append(
-        biv
-          ? h(
-              'div',
-              { class: 'picker' },
-              h('div', { class: 'picker-label' }, 'Mark a crossover (X) on this bivalent:'),
-              h(
-                'div',
-                { class: 'row' },
-                b.intervals().map((iv) => h('button', { class: 'btn small', onclick: () => b.addCrossover(iv.index) }, `X ${iv.label}`)),
-                biv.crossovers.length ? h('button', { class: 'btn small', onclick: () => b.clearCrossovers() }, 'Clear X') : null,
-              ),
-            )
-          : h('p', { class: 'hint' }, 'To mark crossovers, select a paired bivalent.'),
-      );
-    }
+    const tips = [
+      'Drag a chromosome from the tray into a nucleus: 1 chromatid, or 2 sister chromatids.',
+      'Drag an allele onto each chromatid to label it (or tap a chromatid to cycle).',
+      'Drag one chromosome onto its homolog to pair them; drag it away to unpair.',
+      s.crossovers ? 'Drag the X onto a bivalent, at the height where the crossover happens. Tap an X to remove it.' : null,
+      s.fixed ? null : 'Drag the nucleus piece up to add a cell; use × to remove one.',
+      'Drag anything onto the bin to remove it.',
+    ].filter(Boolean);
+    clear(this.tools).append(h('ul', { class: 'tips' }, tips.map((t) => h('li', {}, t))));
+  }
+
+  startOver() {
+    this.builder.setNuclei(this.step.start);
+    this.answers[this.step.id] = this.builder.getNuclei();
+    this.feedback = null;
+    this.renderFeedback();
   }
 
   check() {

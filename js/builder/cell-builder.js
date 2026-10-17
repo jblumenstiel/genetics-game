@@ -1,17 +1,28 @@
-// The cell builder: students assemble nuclei from chromosomes and label every chromatid.
+// The cell builder: students assemble nuclei by dragging pieces from a tray.
 //
-//   tap a nucleus            select it (new chromosomes go there)
-//   tap a chromosome         select it; tap its chromatids again to cycle their alleles
-//   drag a chromosome        move it to another nucleus, or drop it on a homolog to pair them
+//   drag a chromosome piece into a nucleus      add it (1 chromatid, or 2 sister chromatids)
+//   drag an allele chip onto a chromatid        label that chromatid
+//   drag a chromosome onto its homolog          pair them as a bivalent
+//   drag a chromosome to another nucleus        move it (pulling it out of a pair if needed)
+//   drag the X chip onto a bivalent             mark a crossover where you drop it
+//   drag the nucleus piece into the work area   add a nucleus
+//   drag anything onto the bin                  remove it
+//   tap a chromatid                             cycle its allele (shortcut)
 //
 // The builder holds drawing models (see engine/drawing.js) and redraws from them, so grading never depends on
 // where things sit on screen. It works for any karyotype and any number of loci.
 
-import { PALETTE, shade } from '../core/palette.js';
+import { PALETTE } from '../core/palette.js';
 import { label as textLabel } from '../render/chromosome.js';
 
 let nextId = 1;
 const uid = () => nextId++;
+
+const CHROMATID_FILL = 0xeee4d1;
+const CHROMATID_EDGE = 0x9d8f78;
+const CENTROMERE = 0x8a7d68;
+const UNSET = 0xd9d2c5;
+const TRASH = 0xb4644a;
 
 function cloneChromosome(c) {
   return { id: uid(), kind: 'chromosome', chrom: c.chrom, chromatids: c.chromatids.map((ct) => ({ alleles: { ...ct.alleles } })) };
@@ -27,9 +38,13 @@ function strip(it) {
   return { kind: 'chromosome', chrom: it.chrom, chromatids: it.chromatids.map((ct) => ({ alleles: { ...ct.alleles } })) };
 }
 
+function inRect(p, r) {
+  return p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height;
+}
+
 export class CellBuilder {
-  // alleles: { [locusId]: [allele, allele, ...] } choices for each locus, in display order.
-  constructor({ app, container, karyotype, alleles, onChange, maxNuclei = 4, fixedNuclei = false, readOnly = false }) {
+  // alleles: { [locusId]: [allele, ...] } choices per locus, in display order.
+  constructor({ app, container, karyotype, alleles, onChange, maxNuclei = 4, fixedNuclei = false, readOnly = false, crossovers = false }) {
     this.app = app;
     this.karyotype = karyotype;
     this.alleles = alleles;
@@ -37,24 +52,25 @@ export class CellBuilder {
     this.maxNuclei = maxNuclei;
     this.fixedNuclei = fixedNuclei;
     this.readOnly = readOnly;
+    this.crossovers = crossovers;
     this.root = new PIXI.Container();
-    this.root.eventMode = 'static';
     container.addChild(this.root);
     this.nuclei = [];
-    this.selected = null;
     this.rect = { x: 0, y: 0, w: 400, h: 300 };
-    this.root.on('globalpointermove', (e) => this.dragMove(e));
+    this.onMove = (e) => this.dragMove(e);
+    this.onUp = (e) => this.dragEnd(e);
   }
 
   destroy() {
+    this.cancelDrag();
     this.root.destroy({ children: true });
   }
 
   // ---- model ----
 
   setNuclei(nuclei) {
+    this.cancelDrag();
     this.nuclei = nuclei.map((n) => ({ id: uid(), label: n.label ?? '', items: (n.items ?? []).map(cloneItem) }));
-    this.selected = this.nuclei.length && !this.readOnly ? { nucleus: this.nuclei[0].id } : null;
     this.render();
   }
 
@@ -67,95 +83,33 @@ export class CellBuilder {
     this.onChange(this.getNuclei());
   }
 
-  nucleusById(id) {
-    return this.nuclei.find((n) => n.id === id);
+  def(chrom) {
+    return this.karyotype.find((k) => k.id === chrom);
   }
 
-  findItem(id) {
+  // Where a chromosome model lives: its nucleus, its index there, and its bivalent if paired.
+  locate(chrom) {
     for (const n of this.nuclei) {
-      const i = n.items.findIndex((it) => it.id === id);
-      if (i >= 0) return { nucleus: n, index: i, item: n.items[i] };
-      for (const it of n.items) {
-        if (it.kind === 'bivalent') {
-          const k = it.homologs.findIndex((hm) => hm.id === id);
-          if (k >= 0) return { nucleus: n, index: n.items.indexOf(it), item: it.homologs[k], bivalent: it };
-        }
+      for (let i = 0; i < n.items.length; i++) {
+        const it = n.items[i];
+        if (it === chrom) return { nucleus: n, index: i };
+        if (it.kind === 'bivalent' && it.homologs.includes(chrom)) return { nucleus: n, index: i, bivalent: it };
       }
     }
     return null;
   }
 
-  targetNucleus() {
-    if (this.selected?.nucleus) return this.nucleusById(this.selected.nucleus);
-    if (this.selected?.item) return this.findItem(this.selected.item)?.nucleus;
-    return this.nuclei[0];
-  }
-
-  selectedItem() {
-    return this.selected?.item ? this.findItem(this.selected.item) : null;
-  }
-
-  // ---- actions (called from the panel) ----
-
-  addChromosome(replicated, chrom = this.karyotype[0].id) {
-    const n = this.targetNucleus();
-    if (!n) return;
-    const def = this.karyotype.find((k) => k.id === chrom);
-    const blank = () => ({ alleles: Object.fromEntries(def.loci.map((l) => [l.id, null])) });
-    const item = { id: uid(), kind: 'chromosome', chrom, chromatids: replicated ? [blank(), blank()] : [blank()] };
-    n.items.push(item);
-    this.selected = { item: item.id };
-    this.changed();
-  }
-
-  addNucleus() {
-    if (this.fixedNuclei || this.nuclei.length >= this.maxNuclei) return;
-    const n = { id: uid(), label: '', items: [] };
-    this.nuclei.push(n);
-    this.selected = { nucleus: n.id };
-    this.changed();
-  }
-
-  canRemoveNucleus() {
-    return !this.fixedNuclei && this.nuclei.length > 1 && !!this.selected?.nucleus;
-  }
-
-  deleteSelected() {
-    const sel = this.selectedItem();
-    if (sel) {
-      if (sel.bivalent) {
-        // Deleting one homolog of a pair leaves the other as a plain chromosome.
-        const other = sel.bivalent.homologs.find((hm) => hm !== sel.item);
-        sel.nucleus.items.splice(sel.index, 1, other);
-      } else sel.nucleus.items.splice(sel.index, 1);
-      this.selected = { nucleus: sel.nucleus.id };
-      return this.changed();
-    }
-    if (this.canRemoveNucleus()) {
-      this.nuclei = this.nuclei.filter((n) => n.id !== this.selected.nucleus);
-      this.selected = { nucleus: this.nuclei[0].id };
-      this.changed();
-    }
-  }
-
-  selectedBivalent() {
-    const sel = this.selectedItem();
-    if (!sel) return null;
-    return sel.bivalent ?? (sel.item.kind === 'bivalent' ? sel.item : null);
-  }
-
-  unpair() {
-    const sel = this.selectedItem();
-    const b = this.selectedBivalent();
-    if (!b) return;
-    const n = sel.nucleus;
-    n.items.splice(n.items.indexOf(b), 1, ...b.homologs);
-    this.changed();
+  // Take a chromosome out of wherever it is; a pair it leaves becomes a single chromosome.
+  detach(chrom) {
+    const at = this.locate(chrom);
+    if (!at) return;
+    if (at.bivalent) at.nucleus.items.splice(at.index, 1, at.bivalent.homologs.find((h) => h !== chrom));
+    else at.nucleus.items.splice(at.index, 1);
   }
 
   // Crossover intervals: stretches between consecutive landmarks (chromosome ends, centromere, loci).
   intervals(chrom = this.karyotype[0].id) {
-    const def = this.karyotype.find((k) => k.id === chrom);
+    const def = this.def(chrom);
     const marks = [
       { pos: 0, name: 'end' },
       { pos: def.centromere, name: 'centromere' },
@@ -165,102 +119,106 @@ export class CellBuilder {
     return marks.slice(1).map((m, i) => ({ index: i, from: marks[i], to: m, mid: (marks[i].pos + m.pos) / 2, label: `between ${marks[i].name} and ${m.name}` }));
   }
 
-  addCrossover(interval) {
-    const b = this.selectedBivalent();
-    if (!b) return;
-    b.crossovers.push({ interval });
-    this.changed();
-  }
-
-  clearCrossovers() {
-    const b = this.selectedBivalent();
-    if (!b) return;
-    b.crossovers = [];
-    this.changed();
-  }
-
-  // ---- layout and drawing ----
+  // ---- layout ----
 
   setRect(rect) {
     this.rect = rect;
     this.render();
   }
 
+  trayHeight() {
+    return this.readOnly ? 0 : Math.max(84, Math.min(104, this.rect.h * 0.2));
+  }
+
   nucleusRects() {
-    const { x, y, w, h } = this.rect;
+    const { x, y, w } = this.rect;
+    const h = this.rect.h - this.trayHeight() - (this.readOnly ? 0 : 10);
     const n = this.nuclei.length;
-    const cols = n <= 2 ? n : 2;
-    const rows = Math.ceil(n / Math.max(1, cols));
-    const cw = w / Math.max(1, cols);
-    const ch = h / Math.max(1, rows);
-    return this.nuclei.map((nuc, i) => {
-      const cx = x + cw * ((i % cols) + 0.5);
-      const cy = y + ch * (Math.floor(i / cols) + 0.5) + 8;
-      return { nucleus: nuc, cx, cy, rx: cw * 0.44, ry: ch * 0.38 };
-    });
+    const cols = n <= 2 ? Math.max(1, n) : 2;
+    const rows = Math.max(1, Math.ceil(n / cols));
+    const cw = w / cols;
+    const ch = h / rows;
+    return this.nuclei.map((nuc, i) => ({
+      nucleus: nuc,
+      cx: x + cw * ((i % cols) + 0.5),
+      cy: y + ch * (Math.floor(i / cols) + 0.5) + 10,
+      rx: cw * 0.44,
+      ry: ch * 0.38,
+    }));
   }
 
   alleleColor(locusId, allele) {
-    if (!allele) return 0xd9d2c5;
+    if (!allele) return UNSET;
     const i = this.alleles[locusId].indexOf(allele);
     return [PALETTE.clay, PALETTE.dusk, PALETTE.sage, PALETTE.ochre][i % 4];
   }
 
-  cycleAllele(chromatid, locusId) {
-    const opts = this.alleles[locusId];
-    const cur = chromatid.alleles[locusId];
-    chromatid.alleles[locusId] = cur ? opts[(opts.indexOf(cur) + 1) % opts.length] : opts[0];
+  yOf(def, pos) {
+    return (pos / def.length - 0.5) * this.chromLen;
   }
+
+  chromosomeWidth(c, W = this.w) {
+    return c.chromatids.length * W + (c.chromatids.length - 1) * W * 0.2;
+  }
+
+  itemWidth(it) {
+    if (it.kind === 'bivalent') return it.homologs.reduce((s, h) => s + this.chromosomeWidth(h), 0) + this.w * 1.3;
+    return this.chromosomeWidth(it);
+  }
+
+  // ---- drawing ----
 
   render() {
     this.root.removeChildren().forEach((c) => c.destroy({ children: true }));
-    this.itemBounds = [];
+    this.hits = { nuclei: [], chromatids: [], chromosomes: [], bivalents: [], trash: null, area: null };
+    this.pendingBounds = [];
     const rects = this.nucleusRects();
-    const minDim = Math.min(...rects.map((r) => Math.min(r.rx * 2, r.ry * 2)), 400);
-    this.chromLen = Math.max(70, Math.min(200, minDim * 0.62));
+    const minDim = Math.min(...rects.map((r) => Math.min(r.rx * 2, r.ry * 2)), 420);
+    this.chromLen = Math.max(60, Math.min(200, minDim * 0.62));
     this.w = Math.max(12, Math.min(22, this.chromLen * 0.12));
 
-    const bg = new PIXI.Graphics().rect(this.rect.x, this.rect.y, this.rect.w, this.rect.h).fill({ color: 0xffffff, alpha: 0.001 });
-    bg.eventMode = this.readOnly ? 'none' : 'static';
-    bg.on('pointertap', () => {
-      this.selected = null;
-      this.changed();
-    });
-    this.root.addChild(bg);
-
+    this.hits.area = { x: this.rect.x, y: this.rect.y, width: this.rect.w, height: this.rect.h - this.trayHeight() };
     for (const r of rects) this.drawNucleus(r);
+    if (!this.readOnly) this.drawTray();
+    this.highlight = new PIXI.Graphics();
+    this.root.addChild(this.highlight);
   }
 
   drawNucleus(r) {
     const { nucleus: n, cx, cy, rx, ry } = r;
-    const sel = this.selected?.nucleus === n.id;
-    const g = new PIXI.Graphics();
-    g.ellipse(cx, cy, rx, ry).fill({ color: PALETTE.nucleus, alpha: 0.55 }).stroke({ width: sel ? 4 : 2.5, color: sel ? PALETTE.ochre : PALETTE.cellEdge });
-    g.eventMode = this.readOnly ? 'none' : 'static';
-    g.cursor = 'pointer';
-    g.on('pointertap', (e) => {
-      e.stopPropagation();
-      this.selected = { nucleus: n.id };
-      this.changed();
-    });
+    const g = new PIXI.Graphics().ellipse(cx, cy, rx, ry).fill({ color: PALETTE.nucleus, alpha: 0.55 }).stroke({ width: 2.5, color: PALETTE.cellEdge });
     this.root.addChild(g);
-    r.graphic = g;
+    this.hits.nuclei.push({ nucleus: n, cx, cy, rx, ry });
 
-    const name = n.label || `Nucleus ${this.nuclei.indexOf(n) + 1}`;
-    const t = textLabel(name, 14, { fill: PALETTE.inkSoft, fontWeight: '800' });
+    const t = textLabel(n.label || `Nucleus ${this.nuclei.indexOf(n) + 1}`, 14, { fill: PALETTE.inkSoft, fontWeight: '800' });
     t.anchor.set(0.5, 1);
     t.position.set(cx, cy - ry - 4);
     this.root.addChild(t);
 
+    if (!this.readOnly && !this.fixedNuclei && this.nuclei.length > 1) {
+      const close = new PIXI.Container();
+      close.addChild(new PIXI.Graphics().circle(0, 0, 11).fill(0xffffff).stroke({ width: 1.5, color: PALETTE.cellEdge }));
+      const x = textLabel('×', 16, { fill: PALETTE.inkSoft });
+      x.anchor.set(0.5, 0.55);
+      close.addChild(x);
+      close.position.set(cx + t.width / 2 + 16, cy - ry - 13);
+      close.eventMode = 'static';
+      close.cursor = 'pointer';
+      close.on('pointertap', () => {
+        this.nuclei = this.nuclei.filter((m) => m !== n);
+        this.changed();
+      });
+      this.root.addChild(close);
+    }
+
     if (!n.items.length && !this.readOnly) {
-      const hint = textLabel('empty', 13, { fill: PALETTE.inkSoft, fontWeight: '600' });
+      const hint = textLabel('drag chromosomes here', 13, { fill: PALETTE.inkSoft, fontWeight: '600' });
       hint.anchor.set(0.5);
       hint.position.set(cx, cy);
-      hint.alpha = 0.6;
+      hint.alpha = 0.55;
       this.root.addChild(hint);
     }
 
-    // Items in a centered row, scaled down if they would overflow the nucleus.
     const W = this.w;
     const widths = n.items.map((it) => this.itemWidth(it));
     const gap = W * 1.8;
@@ -272,199 +230,347 @@ export class CellBuilder {
     this.root.addChild(row);
     let x = -total / 2;
     n.items.forEach((it, i) => {
-      const view = this.drawItem(it, n);
+      const view = it.kind === 'bivalent' ? this.drawBivalent(it, n) : this.drawChromosome(it, { nucleus: n });
       view.position.set(x + widths[i] / 2, 0);
       row.addChild(view);
       x += widths[i] + gap;
     });
+    // Bounds can only be read once the views are placed in the row.
+    this.pendingBounds?.forEach((fn) => fn());
+    this.pendingBounds = [];
   }
 
-  chromosomeWidth(c) {
-    return c.chromatids.length * this.w + (c.chromatids.length - 1) * this.w * 0.2;
-  }
-
-  itemWidth(it) {
-    if (it.kind === 'bivalent') return it.homologs.reduce((s, hm) => s + this.chromosomeWidth(hm), 0) + this.w * 0.5 + this.w * 0.8;
-    return this.chromosomeWidth(it);
-  }
-
-  drawItem(it, nucleus) {
-    if (it.kind !== 'bivalent') return this.drawChromosome(it, nucleus, null);
+  drawBivalent(it, nucleus) {
     const c = new PIXI.Container();
     const width = this.itemWidth(it);
     const L = this.chromLen;
-    const selected = this.selected?.item && (this.selected.item === it.id || it.homologs.some((hm) => hm.id === this.selected.item));
-    const pill = new PIXI.Graphics()
-      .roundRect(-width / 2, -L / 2 - 10, width, L + 20, this.w)
-      .fill({ color: PALETTE.ochre, alpha: 0.12 })
-      .stroke({ width: selected ? 2.5 : 1.5, color: selected ? PALETTE.ochre : PALETTE.cellEdge, alpha: 0.9 });
-    c.addChild(pill);
+    c.addChild(
+      new PIXI.Graphics()
+        .roundRect(-width / 2, -L / 2 - 10, width, L + 20, this.w)
+        .fill({ color: PALETTE.ochre, alpha: 0.12 })
+        .stroke({ width: 1.5, color: PALETTE.cellEdge, alpha: 0.9 }),
+    );
     const w0 = this.chromosomeWidth(it.homologs[0]);
     const w1 = this.chromosomeWidth(it.homologs[1]);
     const inner = this.w * 0.5;
-    const h0 = this.drawChromosome(it.homologs[0], nucleus, it);
-    const h1 = this.drawChromosome(it.homologs[1], nucleus, it);
+    const h0 = this.drawChromosome(it.homologs[0], { nucleus, bivalent: it });
+    const h1 = this.drawChromosome(it.homologs[1], { nucleus, bivalent: it });
     h0.x = -inner / 2 - w0 / 2;
     h1.x = inner / 2 + w1 / 2;
     c.addChild(h0, h1);
 
-    // Crossover marks between the two inner (non-sister) chromatids.
-    const def = this.karyotype.find((k) => k.id === it.chrom);
+    const def = this.def(it.chrom);
     const ivs = this.intervals(it.chrom);
     const seen = {};
-    for (const xo of it.crossovers) {
+    it.crossovers.forEach((xo, k) => {
       const iv = ivs[xo.interval];
-      if (!iv) continue;
-      const k = (seen[xo.interval] = (seen[xo.interval] ?? 0) + 1) - 1;
-      const y = this.yOf(def, iv.mid) + k * 12;
-      const s = this.w * 0.55;
-      const xg = new PIXI.Graphics()
-        .moveTo(-s, y - s)
-        .lineTo(s, y + s)
-        .moveTo(s, y - s)
-        .lineTo(-s, y + s)
-        .stroke({ width: 3.5, color: PALETTE.ink, cap: 'round' });
-      c.addChild(xg);
-    }
+      if (!iv) return;
+      const stack = (seen[xo.interval] = (seen[xo.interval] ?? 0) + 1) - 1;
+      const mark = this.crossMark();
+      mark.position.set(0, this.yOf(def, iv.mid) + stack * 14);
+      if (!this.readOnly) {
+        mark.eventMode = 'static';
+        mark.cursor = 'grab';
+        mark.on('pointerdown', (e) => this.startDrag(e, { type: 'move-x', bivalent: it, index: k }, () => this.crossMark()));
+      }
+      c.addChild(mark);
+    });
+
+    this.pendingBounds.push(() => this.hits.bivalents.push({ bivalent: it, nucleus, view: c, bounds: c.getBounds(), def }));
     return c;
   }
 
-  yOf(def, pos) {
-    return (pos / def.length - 0.5) * this.chromLen;
+  crossMark(size = this.w * 0.6) {
+    const g = new PIXI.Graphics();
+    g.circle(0, 0, size * 1.25).fill({ color: 0xffffff, alpha: 0.001 });
+    g.moveTo(-size, -size).lineTo(size, size).moveTo(size, -size).lineTo(-size, size).stroke({ width: 4, color: PALETTE.ink, cap: 'round' });
+    return g;
   }
 
-  drawChromosome(chrom, nucleus, bivalent) {
+  // A chromosome: one or two chromatids joined at the centromere, each with an allele band per locus.
+  drawChromosome(chrom, { nucleus = null, bivalent = null, interactive = !this.readOnly, W = this.w, L = this.chromLen } = {}) {
     const c = new PIXI.Container();
-    const def = this.karyotype.find((k) => k.id === chrom.chrom);
-    const W = this.w;
-    const L = this.chromLen;
+    const def = this.def(chrom.chrom);
     const n = chrom.chromatids.length;
-    const width = this.chromosomeWidth(chrom);
-    const selected = this.selected?.item === chrom.id || (bivalent && this.selected?.item === bivalent.id);
-    const cy = this.yOf(def, def.centromere);
-    const gap = W * 0.2;
-
-    if (selected) {
-      c.addChild(new PIXI.Graphics().roundRect(-width / 2 - 5, -L / 2 - 5, width + 10, L + 10, W * 0.7).stroke({ width: 3, color: PALETTE.ochre }));
-    }
+    const width = this.chromosomeWidth(chrom, W);
+    const y = (pos) => (pos / def.length - 0.5) * L;
+    const cy = y(def.centromere);
+    const neck = W * 0.22;
 
     chrom.chromatids.forEach((ct, i) => {
-      const x = -width / 2 + W / 2 + i * (W + gap);
       const view = new PIXI.Container();
-      view.x = x;
+      view.x = -width / 2 + W / 2 + i * W * 1.2;
       const body = new PIXI.Graphics();
-      const neck = W * 0.22;
-      body.roundRect(-W / 2, -L / 2, W, cy + L / 2 - neck, W / 2).fill(0xeee4d1).stroke({ width: 1.5, color: 0x9d8f78 });
-      body.roundRect(-W / 2, cy + neck, W, L / 2 - cy - neck, W / 2).fill(0xeee4d1).stroke({ width: 1.5, color: 0x9d8f78 });
+      body.roundRect(-W / 2, -L / 2, W, cy + L / 2 - neck, W / 2).fill(CHROMATID_FILL).stroke({ width: 1.5, color: CHROMATID_EDGE });
+      body.roundRect(-W / 2, cy + neck, W, L / 2 - cy - neck, W / 2).fill(CHROMATID_FILL).stroke({ width: 1.5, color: CHROMATID_EDGE });
       view.addChild(body);
       for (const locus of def.loci) {
-        const y = this.yOf(def, locus.pos);
-        // The allele letter sits inside its band, so neighboring chromatids never collide.
         const allele = ct.alleles[locus.id];
         const bandH = W * 1.25;
-        view.addChild(new PIXI.Graphics().roundRect(-W / 2 - 1, y - bandH / 2, W + 2, bandH, 3).fill(this.alleleColor(locus.id, allele)));
-        const t = textLabel(allele ?? '?', Math.max(12, W * 0.95), { fill: allele ? 0xffffff : PALETTE.inkSoft, fontWeight: '800' });
+        view.addChild(new PIXI.Graphics().roundRect(-W / 2 - 1, y(locus.pos) - bandH / 2, W + 2, bandH, 3).fill(this.alleleColor(locus.id, allele)));
+        const t = textLabel(allele ?? '?', Math.max(11, W * 0.95), { fill: allele ? 0xffffff : PALETTE.inkSoft, fontWeight: '800' });
         t.anchor.set(0.5);
-        t.position.set(0, y);
+        t.position.set(0, y(locus.pos));
         view.addChild(t);
       }
-      view.eventMode = this.readOnly ? 'none' : 'static';
-      view.cursor = 'pointer';
-      view.hitArea = new PIXI.Rectangle(-W / 2 - 3, -L / 2, W + 6, L);
-      view.on('pointerdown', (e) => this.pointerDown(e, chrom, bivalent, ct, def, view));
+      if (interactive) {
+        view.eventMode = 'static';
+        view.cursor = 'grab';
+        view.hitArea = new PIXI.Rectangle(-W / 2 - 4, -L / 2 - 4, W + 8, L + 8);
+        view.on('pointerdown', (e) =>
+          this.startDrag(e, { type: 'move-chrom', chrom, chromatid: ct, def, source: c }, () => this.drawChromosome(chrom, { interactive: false, W: W * this.rowScale(c), L: L * this.rowScale(c) })),
+        );
+        this.pendingBounds.push(() => this.hits.chromatids.push({ chrom, chromatid: ct, def, view, bounds: view.getBounds() }));
+      }
       c.addChild(view);
     });
 
-    // Sister chromatids are held together at the centromere.
-    if (n === 2) c.addChild(new PIXI.Graphics().roundRect(-W * 0.6, cy - W * 0.3, W * 1.2, W * 0.6, W * 0.3).fill(0x8a7d68));
-    else c.addChild(new PIXI.Graphics().circle(0, cy, W * 0.22).fill(0x8a7d68));
+    if (n === 2) c.addChild(new PIXI.Graphics().roundRect(-W * 0.6, cy - W * 0.3, W * 1.2, W * 0.6, W * 0.3).fill(CENTROMERE));
+    else c.addChild(new PIXI.Graphics().circle(0, cy, W * 0.22).fill(CENTROMERE));
 
-    c.chromId = chrom.id;
-    this.itemBounds.push({ id: chrom.id, nucleus: nucleus.id, view: c, w: width, h: L });
+    if (interactive) this.pendingBounds.push(() => this.hits.chromosomes.push({ chrom, bivalent, nucleus, view: c, bounds: c.getBounds() }));
     return c;
   }
 
-  // ---- pointer handling ----
+  rowScale(view) {
+    return view.worldTransform.a;
+  }
 
-  pointerDown(e, chrom, bivalent, chromatid, def, chromatidView) {
+  // The tray of draggable pieces along the bottom.
+  drawTray() {
+    const th = this.trayHeight();
+    const { x, w } = this.rect;
+    const y = this.rect.y + this.rect.h - th;
+    const tray = new PIXI.Graphics().roundRect(x, y, w, th, 14).fill(PALETTE.panel).stroke({ width: 1.5, color: PALETTE.line });
+    this.root.addChild(tray);
+
+    const def = this.karyotype[0];
+    const iconL = th * 0.5;
+    const iconW = Math.max(8, iconL * 0.13);
+    const blank = (k) => ({ chrom: def.id, chromatids: Array.from({ length: k }, () => ({ alleles: Object.fromEntries(def.loci.map((l) => [l.id, null])) })) });
+
+    const pieces = [
+      { caption: '1 chromatid', icon: () => this.drawChromosome(blank(1), { interactive: false, W: iconW, L: iconL }), payload: { type: 'new-chrom', copies: 1 } },
+      { caption: '2 chromatids', icon: () => this.drawChromosome(blank(2), { interactive: false, W: iconW, L: iconL }), payload: { type: 'new-chrom', copies: 2 } },
+    ];
+    for (const [locusId, list] of Object.entries(this.alleles)) {
+      for (const allele of list) pieces.push({ caption: 'allele', icon: () => this.alleleChip(locusId, allele, th * 0.2), payload: { type: 'allele', locusId, allele } });
+    }
+    if (this.crossovers) pieces.push({ caption: 'crossover', icon: () => this.crossMark(th * 0.13), payload: { type: 'new-x' } });
+    if (!this.fixedNuclei) pieces.push({ caption: 'nucleus', icon: () => new PIXI.Graphics().ellipse(0, 0, th * 0.24, th * 0.17).fill({ color: PALETTE.nucleus }).stroke({ width: 2, color: PALETTE.cellEdge }), payload: { type: 'new-nucleus' } });
+
+    const slots = pieces.length + 1;
+    const slotW = w / slots;
+    pieces.forEach((p, i) => {
+      const cx = x + slotW * (i + 0.5);
+      const holder = new PIXI.Container();
+      holder.position.set(cx, y + th * 0.42);
+      const icon = p.icon();
+      holder.addChild(icon);
+      holder.eventMode = 'static';
+      holder.cursor = 'grab';
+      holder.hitArea = new PIXI.Rectangle(-slotW / 2 + 2, -th * 0.4, slotW - 4, th * 0.8);
+      holder.on('pointerdown', (e) => this.startDrag(e, p.payload, p.icon));
+      this.root.addChild(holder);
+      const cap = textLabel(p.caption, 11, { fill: PALETTE.inkSoft, fontWeight: '700' });
+      cap.anchor.set(0.5, 0);
+      cap.position.set(cx, y + th * 0.8);
+      this.root.addChild(cap);
+    });
+
+    // The bin.
+    const bx = x + slotW * (slots - 0.5);
+    const by = y + th * 0.42;
+    const bin = new PIXI.Graphics();
+    const s = th * 0.16;
+    bin.roundRect(bx - s, by - s * 0.7, s * 2, s * 2.1, 3).stroke({ width: 2.5, color: TRASH });
+    bin.moveTo(bx - s * 1.3, by - s * 0.9).lineTo(bx + s * 1.3, by - s * 0.9).stroke({ width: 2.5, color: TRASH, cap: 'round' });
+    bin.moveTo(bx - s * 0.35, by - s * 1.25).lineTo(bx + s * 0.35, by - s * 1.25).stroke({ width: 2.5, color: TRASH, cap: 'round' });
+    for (const dx of [-0.45, 0, 0.45]) bin.moveTo(bx + dx * s, by - s * 0.3).lineTo(bx + dx * s, by + s * 1.1).stroke({ width: 1.8, color: TRASH });
+    this.root.addChild(bin);
+    const cap = textLabel('remove', 11, { fill: TRASH, fontWeight: '700' });
+    cap.anchor.set(0.5, 0);
+    cap.position.set(bx, y + th * 0.8);
+    this.root.addChild(cap);
+    this.hits.trash = { x: bx - slotW / 2, y, width: slotW, height: th };
+  }
+
+  alleleChip(locusId, allele, r) {
+    const c = new PIXI.Container();
+    c.addChild(new PIXI.Graphics().roundRect(-r, -r * 0.8, r * 2, r * 1.6, r * 0.45).fill(this.alleleColor(locusId, allele)));
+    const t = textLabel(allele, Math.max(13, r * 1.1), { fill: 0xffffff, fontWeight: '800' });
+    t.anchor.set(0.5);
+    c.addChild(t);
+    return c;
+  }
+
+  // ---- dragging ----
+
+  toPoint(e) {
+    const p = new PIXI.Point();
+    this.app.renderer.events.mapPositionToPoint(p, e.clientX, e.clientY);
+    return p;
+  }
+
+  startDrag(e, payload, makeGhost) {
+    if (this.readOnly || this.drag) return;
     e.stopPropagation();
     const start = e.global.clone();
-    const local = chromatidView.toLocal(e.global);
-    this.drag = { chrom, bivalent, chromatid, def, start, localY: local.y, moved: false, ghost: null };
-    const up = (ev) => this.pointerUp(ev);
-    chromatidView.once('pointerup', up);
-    chromatidView.once('pointerupoutside', up);
+    this.drag = { payload, start, point: start, moved: false, makeGhost, ghost: null };
+    window.addEventListener('pointermove', this.onMove);
+    window.addEventListener('pointerup', this.onUp);
+    window.addEventListener('pointercancel', this.onUp);
+  }
+
+  cancelDrag() {
+    window.removeEventListener('pointermove', this.onMove);
+    window.removeEventListener('pointerup', this.onUp);
+    window.removeEventListener('pointercancel', this.onUp);
+    this.drag?.ghost?.destroy({ children: true });
+    if (this.drag?.payload.source && !this.drag.payload.source.destroyed) this.drag.payload.source.alpha = 1;
+    this.drag = null;
   }
 
   dragMove(e) {
     const d = this.drag;
     if (!d) return;
-    if (!d.moved && Math.hypot(e.global.x - d.start.x, e.global.y - d.start.y) < 6) return;
+    const p = this.toPoint(e);
+    d.point = p;
+    if (!d.moved && Math.hypot(p.x - d.start.x, p.y - d.start.y) < 6) return;
     if (!d.moved) {
       d.moved = true;
-      const view = this.itemBounds.find((b) => b.id === d.chrom.id)?.view;
-      if (view) {
-        const pos = view.getGlobalPosition();
-        d.ghost = view;
-        d.offset = { x: pos.x - e.global.x, y: pos.y - e.global.y };
-        const s = view.worldTransform.a;
-        view.removeFromParent();
-        view.scale.set(s);
-        view.alpha = 0.85;
-        this.root.addChild(view);
+      d.ghost = d.makeGhost();
+      d.ghost.alpha = 0.9;
+      d.ghost.eventMode = 'none';
+      this.root.addChild(d.ghost);
+      if (d.payload.source) d.payload.source.alpha = 0.25;
+    }
+    d.ghost.position.set(p.x, p.y);
+    this.showTarget(this.targetFor(d.payload, p));
+  }
+
+  dragEnd(e) {
+    const d = this.drag;
+    if (!d) return;
+    const p = this.toPoint(e);
+    const payload = d.payload;
+    const moved = d.moved;
+    this.cancelDrag();
+    if (!moved) return this.tap(payload, p);
+    this.drop(payload, this.targetFor(payload, p), p);
+  }
+
+  // What the dragged piece would land on at point p.
+  targetFor(payload, p) {
+    const h = this.hits;
+    if (h.trash && inRect(p, h.trash) && ['move-chrom', 'move-x'].includes(payload.type)) return { kind: 'trash' };
+    const nucleusAt = h.nuclei.find((r) => ((p.x - r.cx) / r.rx) ** 2 + ((p.y - r.cy) / r.ry) ** 2 <= 1);
+    switch (payload.type) {
+      case 'new-chrom':
+        return nucleusAt ? { kind: 'nucleus', ...nucleusAt } : null;
+      case 'allele': {
+        const hit = h.chromatids.find((c) => inRect(p, c.bounds));
+        return hit ? { kind: 'chromatid', ...hit } : null;
+      }
+      case 'new-x':
+      case 'move-x': {
+        const hit = h.bivalents.find((b) => inRect(p, b.bounds));
+        return hit ? { kind: 'bivalent', ...hit } : payload.type === 'move-x' ? { kind: 'remove-x' } : null;
+      }
+      case 'new-nucleus':
+        return !this.fixedNuclei && this.nuclei.length < this.maxNuclei && inRect(p, h.area) ? { kind: 'area' } : null;
+      case 'move-chrom': {
+        const onto = h.chromosomes.find((c) => c.chrom !== payload.chrom && !c.bivalent && c.chrom.chrom === payload.chrom.chrom && inRect(p, c.bounds));
+        if (onto) return { kind: 'pair', ...onto };
+        return nucleusAt ? { kind: 'nucleus', ...nucleusAt } : null;
       }
     }
-    if (d.ghost) d.ghost.position.set(e.global.x + d.offset.x, e.global.y + d.offset.y);
+    return null;
   }
 
-  pointerUp(e) {
-    const d = this.drag;
-    this.drag = null;
-    if (!d) return;
-    if (!d.moved) return this.tap(d);
-    this.drop(d, e.global);
+  showTarget(t) {
+    const g = this.highlight;
+    g.clear();
+    if (!t) return;
+    const glow = { width: 4, color: PALETTE.ochre };
+    if (t.kind === 'trash') g.roundRect(t.x ?? this.hits.trash.x, this.hits.trash.y + 4, this.hits.trash.width, this.hits.trash.height - 8, 10).stroke({ width: 4, color: TRASH });
+    else if (t.kind === 'nucleus') g.ellipse(t.cx, t.cy, t.rx, t.ry).stroke(glow);
+    else if (t.kind === 'area') g.rect(this.hits.area.x + 4, this.hits.area.y + 4, this.hits.area.width - 8, this.hits.area.height - 8).stroke({ ...glow, alpha: 0.6 });
+    else if (t.bounds) g.roundRect(t.bounds.x - 4, t.bounds.y - 4, t.bounds.width + 8, t.bounds.height + 8, 8).stroke(glow);
   }
 
-  tap(d) {
-    const isSelected = this.selected?.item === d.chrom.id || (d.bivalent && this.selected?.item === d.bivalent.id);
-    if (!isSelected) {
-      this.selected = { item: d.chrom.id };
+  // Nearest locus band (for alleles) or interval (for crossovers) to a point on a chromosome.
+  nearestLocus(def, bounds, p) {
+    const rel = (p.y - bounds.y) / bounds.height;
+    const pos = rel * def.length;
+    return def.loci.reduce((best, l) => (Math.abs(l.pos - pos) < Math.abs(best.pos - pos) ? l : best), def.loci[0]);
+  }
+
+  nearestInterval(def, bounds, p) {
+    // Bivalent bounds include a 10px margin above and below the chromosomes.
+    const rel = (p.y - bounds.y - 10 * (bounds.height / (this.chromLen + 20))) / (bounds.height * (this.chromLen / (this.chromLen + 20)));
+    const pos = Math.max(0, Math.min(1, rel)) * def.length;
+    return this.intervals(def.id).find((iv) => pos >= iv.from.pos && pos <= iv.to.pos) ?? this.intervals(def.id)[0];
+  }
+
+  tap(payload, p) {
+    if (payload.type === 'move-chrom') {
+      // Tapping a chromatid cycles its allele at the nearest band.
+      const hit = this.hits.chromatids.find((c) => c.chromatid === payload.chromatid);
+      const locus = hit ? this.nearestLocus(payload.def, hit.bounds, p) : payload.def.loci[0];
+      const opts = this.alleles[locus.id];
+      const cur = payload.chromatid.alleles[locus.id];
+      payload.chromatid.alleles[locus.id] = cur ? opts[(opts.indexOf(cur) + 1) % opts.length] : opts[0];
       return this.changed();
     }
-    // Cycle the allele at the locus band nearest the tap.
-    const nearest = d.def.loci.reduce((best, l) => (Math.abs(this.yOf(d.def, l.pos) - d.localY) < Math.abs(this.yOf(d.def, best.pos) - d.localY) ? l : best), d.def.loci[0]);
-    this.cycleAllele(d.chromatid, nearest.id);
-    this.changed();
+    if (payload.type === 'move-x') {
+      payload.bivalent.crossovers.splice(payload.index, 1);
+      return this.changed();
+    }
+    // Tapping a tray piece: drop it in the only nucleus if there is just one.
+    if (payload.type === 'new-chrom' && this.nuclei.length === 1) return this.drop(payload, { kind: 'nucleus', nucleus: this.nuclei[0] }, p);
+    if (payload.type === 'new-nucleus') return this.drop(payload, { kind: 'area' }, p);
+    this.render();
   }
 
-  drop(d, point) {
-    const from = this.findItem(d.chrom.id);
-    // Dropped on another unpaired chromosome of the same type: pair them.
-    const target = this.itemBounds.find((b) => {
-      if (b.id === d.chrom.id || b.view === d.ghost) return false;
-      const p = b.view.toLocal(point);
-      return Math.abs(p.x) < b.w / 2 + 12 && Math.abs(p.y) < b.h / 2 + 10;
-    });
-    if (target) {
-      const to = this.findItem(target.id);
-      if (to && !to.bivalent && !from.bivalent && to.item.chrom === d.chrom.chrom) {
-        from.nucleus.items.splice(from.index, 1);
-        const idx = to.nucleus.items.indexOf(to.item);
-        const biv = { id: uid(), kind: 'bivalent', chrom: d.chrom.chrom, homologs: [to.item, d.chrom], crossovers: [] };
-        to.nucleus.items.splice(idx, 1, biv);
-        this.selected = { item: biv.id };
-        return this.changed();
+  drop(payload, t, p) {
+    if (!t) return this.render();
+    const def = this.karyotype[0];
+    switch (payload.type) {
+      case 'new-chrom': {
+        const chromatids = Array.from({ length: payload.copies }, () => ({ alleles: Object.fromEntries(def.loci.map((l) => [l.id, null])) }));
+        t.nucleus.items.push({ id: uid(), kind: 'chromosome', chrom: def.id, chromatids });
+        break;
       }
-    }
-    // Dropped inside a nucleus: move it there (pulling it out of a pair if needed).
-    const rect = this.nucleusRects().find((r) => ((point.x - r.cx) / r.rx) ** 2 + ((point.y - r.cy) / r.ry) ** 2 <= 1);
-    if (rect && (rect.nucleus !== from.nucleus || from.bivalent)) {
-      if (from.bivalent) {
-        const other = from.bivalent.homologs.find((hm) => hm !== d.chrom);
-        from.nucleus.items.splice(from.index, 1, other);
-      } else from.nucleus.items.splice(from.index, 1);
-      rect.nucleus.items.push(d.chrom);
-      this.selected = { item: d.chrom.id };
+      case 'allele': {
+        const locus = this.nearestLocus(t.def, t.bounds, p);
+        if (locus.id === payload.locusId) t.chromatid.alleles[locus.id] = payload.allele;
+        else t.chromatid.alleles[payload.locusId] = payload.allele;
+        break;
+      }
+      case 'new-x':
+        t.bivalent.crossovers.push({ interval: this.nearestInterval(t.def, t.bounds, p).index });
+        break;
+      case 'move-x':
+        payload.bivalent.crossovers.splice(payload.index, 1);
+        if (t.kind === 'bivalent') t.bivalent.crossovers.push({ interval: this.nearestInterval(t.def, t.bounds, p).index });
+        break;
+      case 'new-nucleus':
+        if (this.nuclei.length < this.maxNuclei) this.nuclei.push({ id: uid(), label: '', items: [] });
+        break;
+      case 'move-chrom':
+        if (t.kind === 'trash') this.detach(payload.chrom);
+        else if (t.kind === 'pair') {
+          this.detach(payload.chrom);
+          const at = this.locate(t.chrom);
+          at.nucleus.items.splice(at.index, 1, { id: uid(), kind: 'bivalent', chrom: t.chrom.chrom, homologs: [t.chrom, payload.chrom], crossovers: [] });
+        } else if (t.kind === 'nucleus') {
+          const at = this.locate(payload.chrom);
+          if (at.nucleus === t.nucleus && !at.bivalent) return this.render();
+          this.detach(payload.chrom);
+          t.nucleus.items.push(payload.chrom);
+        }
+        break;
     }
     this.changed();
   }
