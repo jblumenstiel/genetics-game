@@ -213,9 +213,19 @@ class DrawingModule {
       {
         id: 'g',
         title: 'Meiosis: Gametes',
-        prompt: () => 'Meiosis has finished. Build the nucleus of each gamete.',
-        start: [{ label: '' }],
-        maxNuclei: 6,
+        prompt: () => 'Meiosis has finished. First say how many gametes there are, then build the nucleus of each gamete.',
+        start: [{ label: 'Gamete 1' }, { label: 'Gamete 2' }, { label: 'Gamete 3' }, { label: 'Gamete 4' }],
+        fixed: true,
+        nucleiQuestion: {
+          text: 'After Meiosis II, how many gametes are there?',
+          options: [1, 2, 4],
+          answer: 4,
+          wrong: {
+            1: 'Incorrect. Meiosis has two divisions, and each one splits every cell in two, so one cell becomes more than one gamete.',
+            2: 'Incorrect. Two is the count after Meiosis I. Meiosis II then splits each of those two cells again.',
+          },
+          right: 'Correct: Meiosis I makes two cells and Meiosis II splits each again, giving four gametes. Build each one.',
+        },
         expected: () => gameteNuclei(d().result),
       },
       {
@@ -367,7 +377,9 @@ class DrawingModule {
     let height = 86;
     if (pick != null) {
       const right = pick === q.answer;
-      const fb = textLabel(right ? q.right : q.wrong, 13, { fontWeight: '700', fill: right ? PALETTE.sage : PALETTE.clay, wordWrap: true, wordWrapWidth: Math.min(w - 40, 560), align: 'center' });
+      // `wrong` is one message, or one per wrong option.
+      const wrong = typeof q.wrong === 'string' ? q.wrong : q.wrong[pick];
+      const fb = textLabel(right ? q.right : wrong, 13, { fontWeight: '700', fill: right ? PALETTE.sage : PALETTE.clay, wordWrap: true, wordWrapWidth: Math.min(w - 40, 560), align: 'center' });
       fb.anchor.set(0.5, 0);
       fb.position.set(w / 2, 86);
       bar.addChild(fb);
@@ -692,7 +704,7 @@ class DrawingModule {
   check() {
     const s = this.step;
     if (!this.nucleiShown(s)) {
-      this.feedback = { kind: 'bad', text: 'First answer the question above the cell: how many nuclei are there after Meiosis I?' };
+      this.feedback = { kind: 'bad', text: `First answer the question above the cell: ${s.nucleiQuestion.text}` };
       return this.renderFeedback();
     }
     const student = this.builder.getNuclei();
