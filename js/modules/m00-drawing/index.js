@@ -81,6 +81,11 @@ class DrawingModule {
     this.lockNote = new PIXI.Container();
     this.lockNote.visible = false;
     this.scene.addChild(this.lockNote);
+    // A question shown above the cell before its nuclei appear (question f: how many nuclei after meiosis I?).
+    this.nucleiBar = new PIXI.Container();
+    this.scene.addChild(this.nucleiBar);
+    this.nucleiPick = {}; // step id -> number chosen
+    this.nucleiOk = new Set(); // step ids answered correctly
 
     this.buildPanel();
     this.go(0);
@@ -189,9 +194,17 @@ class DrawingModule {
       {
         id: 'f',
         title: 'Meiosis: Metaphase II',
-        prompt: () => 'Meiosis I has finished. Build each nucleus at metaphase II, then choose how the chromosomes are arranged on the metaphase plate.',
-        start: [{ label: '' }],
-        maxNuclei: 4,
+        prompt: () => 'Meiosis I has finished. First say how many nuclei there are, then build each nucleus at metaphase II and choose how the chromosomes are arranged on the metaphase plate.',
+        start: [{ label: 'Nucleus 1' }, { label: 'Nucleus 2' }],
+        fixed: true,
+        // Answered above the cell before the nuclei appear.
+        nucleiQuestion: {
+          text: 'After Meiosis I, there are how many nuclei?',
+          options: [1, 2],
+          answer: 2,
+          wrong: 'Incorrect. Meiosis I divides one cell into two: the homologs went to opposite poles, so there are two nuclei.',
+          right: 'Correct: two nuclei, one at each pole of the meiosis I spindle. Build each one at metaphase II.',
+        },
         metaphase: true,
         arrangement: 'plate',
         anaphase: 'sisters',
@@ -270,7 +283,7 @@ class DrawingModule {
     this.builder.maxNuclei = s.maxNuclei ?? 4;
     this.builder.crossovers = !!s.crossovers;
     this.builder.metaphase = !!s.metaphase;
-    this.builder.root.visible = !s.list;
+    this.builder.root.visible = !s.list && this.nucleiShown(s);
     if (!s.list) this.builder.setNuclei(this.answers[s.id] ?? s.start);
     this.applyLock();
     this.renderStepper();
@@ -310,9 +323,63 @@ class DrawingModule {
     this.layout();
   }
 
+  nucleiShown(s = this.step) {
+    return !s.nucleiQuestion || this.nucleiOk.has(s.id);
+  }
+
+  pickNuclei(n) {
+    const s = this.step;
+    this.nucleiPick[s.id] = n;
+    if (n === s.nucleiQuestion.answer) {
+      this.nucleiOk.add(s.id);
+      this.builder.root.visible = true;
+      this.builder.setNuclei(this.answers[s.id] ?? s.start);
+    }
+    this.layout();
+    this.renderBody();
+  }
+
+  // The question bar above the cell: prompt, one button per option, and feedback once one is chosen.
+  drawNucleiBar(w) {
+    const bar = this.nucleiBar;
+    bar.removeChildren().forEach((c) => c.destroy({ children: true }));
+    const q = this.step.nucleiQuestion;
+    if (!q) return 0;
+    const pick = this.nucleiPick[this.step.id];
+    const prompt = textLabel(q.text, 16, { fontWeight: '800' });
+    prompt.anchor.set(0.5, 0);
+    prompt.position.set(w / 2, 12);
+    bar.addChild(prompt);
+    const size = 46;
+    q.options.forEach((n, i) => {
+      const chosen = pick === n;
+      const color = chosen ? (n === q.answer ? PALETTE.sage : PALETTE.clay) : 0xffffff;
+      const b = new PIXI.Container();
+      const t = textLabel(String(n), 20, { fontWeight: '800', fill: chosen ? 0xffffff : PALETTE.ink });
+      t.anchor.set(0.5);
+      b.addChild(new PIXI.Graphics().roundRect(-size / 2, -18, size, 36, 12).fill(color).stroke({ width: 2, color: chosen ? color : PALETTE.cellEdge }), t);
+      b.position.set(w / 2 + (i - (q.options.length - 1) / 2) * (size + 14), 60);
+      b.eventMode = 'static';
+      b.cursor = 'pointer';
+      b.on('pointertap', () => this.pickNuclei(n));
+      bar.addChild(b);
+    });
+    let height = 86;
+    if (pick != null) {
+      const right = pick === q.answer;
+      const fb = textLabel(right ? q.right : q.wrong, 13, { fontWeight: '700', fill: right ? PALETTE.sage : PALETTE.clay, wordWrap: true, wordWrapWidth: Math.min(w - 40, 560), align: 'center' });
+      fb.anchor.set(0.5, 0);
+      fb.position.set(w / 2, 86);
+      bar.addChild(fb);
+      height += fb.height + 6;
+    }
+    return height;
+  }
+
   layout() {
     const { w, h: hgt } = this.ctx.size();
-    this.builder.setRect({ x: 12, y: 28, w: w - 24, h: hgt - 36 });
+    const top = this.drawNucleiBar(w);
+    this.builder.setRect({ x: 12, y: 28 + top, w: w - 24, h: hgt - 36 - top });
     // The panel sits to the right on wide screens and below on narrow ones.
     this.lockNote.removeChildren().forEach((c) => c.destroy());
     const wide = window.innerWidth > 860;
@@ -508,6 +575,7 @@ class DrawingModule {
     body.append(h('div', { class: 'stage-name' }, `Question ${s.id}`), h('h2', {}, s.title), h('p', {}, s.prompt()));
     if (s.id === 'a') this.renderZygote(body);
     else this.renderFollow(body);
+    if (!this.nucleiShown(s)) body.append(h('div', { class: 'callout' }, h('b', {}, 'First, answer the question above the cell'), s.nucleiQuestion.text));
     if (s.list) return this.renderList(body);
     this.arrangeEl = h('div');
     this.tools = h('div', { class: 'tools' });
@@ -623,6 +691,10 @@ class DrawingModule {
 
   check() {
     const s = this.step;
+    if (!this.nucleiShown(s)) {
+      this.feedback = { kind: 'bad', text: 'First answer the question above the cell: how many nuclei are there after Meiosis I?' };
+      return this.renderFeedback();
+    }
     const student = this.builder.getNuclei();
     this.attempts[s.id] = (this.attempts[s.id] ?? 0) + 1;
     let ok;
