@@ -1,4 +1,4 @@
-# Gorby Genetics
+# Bdellbee Genetics
 
 Interactive genetics modules with gorbies, glubbins and chomnies, built on PixiJS (WebGL) and a tested
 meiosis engine. Every module is generated from a seed, so creatures, traits, dominance, genotypes and

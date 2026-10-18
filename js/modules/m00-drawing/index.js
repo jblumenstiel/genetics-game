@@ -545,30 +545,22 @@ class DrawingModule {
     this.answers[s.id] = this.builder.getNuclei();
   }
 
-  // Metaphase questions: how the chromosomes line up on the plate, applied to every nucleus.
+  // Metaphase questions: what the two arrangements mean. The choice itself is made on the canvas, in the bar above
+  // the cell or by dropping chromosomes on the plate.
   renderArrangement() {
     if (!this.arrangeEl) return;
     const el = clear(this.arrangeEl);
     if (!this.step.metaphase) return;
-    const nuclei = this.builder.nuclei;
-    const current = nuclei.length && nuclei.every((n) => n.arrangement === nuclei[0].arrangement) ? nuclei[0].arrangement : null;
-    const choice = (value, text, sub) =>
-      h(
-        'button',
-        { class: `choice${current === value ? ' right' : ''}`, onclick: () => this.builder.setAllArrangements(value) },
-        h('b', {}, text),
-        h('div', { class: 'hint' }, sub),
-      );
     el.append(
       h(
         'div',
-        { class: 'picker' },
-        h('div', { class: 'picker-label' }, 'Arrangement on the metaphase plate'),
+        { class: 'callout' },
+        h('b', {}, 'Choose the arrangement in the bar above the cell'),
         h(
-          'div',
-          { class: 'choices' },
-          choice('plate', 'Line up single file on the plate', 'Each chromosome’s centromere sits on the plate; its sister chromatids face opposite poles.'),
-          choice('paired', 'Pair homologs across the plate', 'Homologs pair up side by side; each homolog faces one pole.'),
+          'ul',
+          { class: 'tips' },
+          h('li', {}, h('b', {}, 'Centromeres on the plate: '), 'each chromosome lines up single file, its centromere on the plate and its sister chromatids facing opposite poles. You can also drop a chromosome on the dashed plate.'),
+          h('li', {}, h('b', {}, 'Homologs paired across the plate: '), 'homologs pair side by side, one on each side of the plate, each facing one pole. You can also drag one homolog onto the other.'),
         ),
       ),
     );
@@ -698,15 +690,15 @@ class DrawingModule {
           ? 'At this stage each chromosome is a single chromatid: either it has not replicated yet, or its sisters have already separated.'
           : 'At this stage each chromosome is replicated: two sister chromatids joined at the centromere.';
       case 'not-arranged':
-        return 'Choose how the chromosomes line up at metaphase: single file on the plate, or homologs paired across the plate.';
+        return 'Choose how the chromosomes line up at metaphase, using the bar above the cell: centromeres single file on the plate, or homologs paired across the plate.';
       case 'wrong-arrangement':
         if (p.expected === 'paired')
-          return 'At metaphase I the homologs pair up side by side across the plate, so each homolog faces one pole. Choose “Pair homologs across the plate”.';
+          return 'At metaphase I the homologs pair up side by side across the plate, so each homolog faces one pole. Choose “Homologs paired across the plate” above the cell.';
         return step.id === 'c'
-          ? 'In mitosis homologs do not pair. Each replicated chromosome lines up on its own, centromere on the plate, with its sister chromatids facing opposite poles. Choose “Line up single file on the plate”.'
-          : 'At metaphase II there are no homolog pairs left: they separated at anaphase I. Each chromosome lines up with its centromere on the plate and its sisters facing opposite poles. Choose “Line up single file on the plate”.';
+          ? 'In mitosis homologs do not pair. Each replicated chromosome lines up on its own, centromere on the plate, with its sister chromatids facing opposite poles. Choose “Centromeres on the plate” above the cell, or drop the chromosomes on the dashed plate.'
+          : 'At metaphase II there are no homolog pairs left: they separated at anaphase I. Each chromosome lines up with its centromere on the plate and its sisters facing opposite poles. Choose “Centromeres on the plate” above the cell, or drop the chromosomes on the dashed plate.';
       case 'needs-pairing':
-        return 'At metaphase I every homolog is paired with its partner. Choose “Pair homologs across the plate”, or drag one homolog onto the other.';
+        return 'At metaphase I every homolog is paired with its partner. Choose “Homologs paired across the plate” above the cell, or drag one homolog onto the other.';
       case 'no-pairing':
         return step.id === 'c'
           ? 'Homologs do not pair in mitosis: each replicated chromosome lines up on its own.'

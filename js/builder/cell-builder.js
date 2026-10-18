@@ -180,9 +180,15 @@ export class CellBuilder {
     return this.readOnly ? 0 : Math.max(84, Math.min(104, this.rect.h * 0.2));
   }
 
+  // Height of the arrangement bar shown above the nuclei at metaphase.
+  barHeight() {
+    return this.metaphase && !this.readOnly ? 48 : 0;
+  }
+
   nucleusRects() {
-    const { x, y, w } = this.rect;
-    const h = this.rect.h - this.trayHeight() - (this.readOnly ? 0 : 10);
+    const { x, w } = this.rect;
+    const y = this.rect.y + this.barHeight();
+    const h = this.rect.h - this.barHeight() - this.trayHeight() - (this.readOnly ? 0 : 10);
     const n = this.nuclei.length;
     const cols = n <= 2 ? Math.max(1, n) : 2;
     const rows = Math.max(1, Math.ceil(n / cols));
@@ -220,7 +226,7 @@ export class CellBuilder {
 
   render() {
     this.root.removeChildren().forEach((c) => c.destroy({ children: true }));
-    this.hits = { nuclei: [], chromatids: [], chromosomes: [], bivalents: [], trash: null, area: null };
+    this.hits = { nuclei: [], chromatids: [], chromosomes: [], bivalents: [], plates: [], trash: null, area: null };
     this.pendingBounds = [];
     this.anaphaseUnits = [];
     const rects = this.nucleusRects();
@@ -230,6 +236,7 @@ export class CellBuilder {
 
     this.hits.area = { x: this.rect.x, y: this.rect.y, width: this.rect.w, height: this.rect.h - this.trayHeight() };
     for (const r of rects) this.drawNucleus(r);
+    if (this.barHeight()) this.drawArrangementBar();
     if (!this.readOnly) this.drawTray();
     this.highlight = new PIXI.Graphics();
     this.root.addChild(this.highlight);
@@ -281,6 +288,15 @@ export class CellBuilder {
       plate.stroke({ width: 2, color: PALETTE.spindle, alpha: 0.9 });
       for (const p of poles) plate.circle(p.x, p.y, 5).fill(PALETTE.spindle);
       this.root.addChild(plate);
+      this.hits.plates.push({ nucleus: n, cx, cy, ry });
+      if (n.items.length && !n.arrangement && !this.readOnly) {
+        const hint = textLabel('drop chromosomes on the plate, or choose an arrangement above', 12, { fill: PALETTE.inkSoft, fontWeight: '700' });
+        hint.anchor.set(0.5, 0);
+        hint.position.set(cx, cy + ry * 0.62);
+        hint.alpha = 0.8;
+        if (hint.width > rx * 1.6) hint.scale.set((rx * 1.6) / hint.width);
+        this.root.addChild(hint);
+      }
     }
 
     // Unarranged items sit in a row. Arranged items stack single file down the plate, centered on it: a lone
@@ -414,6 +430,51 @@ export class CellBuilder {
 
   rowScale(view) {
     return view.worldTransform.a;
+  }
+
+  // Two toggles above the nuclei choosing the metaphase arrangement for every nucleus.
+  drawArrangementBar() {
+    const current = this.nuclei.length && this.nuclei.every((n) => n.arrangement === this.nuclei[0].arrangement) ? this.nuclei[0].arrangement : null;
+    const narrow = this.rect.w < 640;
+    const options = [
+      { value: 'plate', text: narrow ? 'Centromeres on plate' : 'Centromeres on the plate (single file)' },
+      { value: 'paired', text: narrow ? 'Homologs paired' : 'Homologs paired across the plate' },
+    ];
+    const bar = new PIXI.Container();
+    const pills = options.map((o) => {
+      const on = current === o.value;
+      const t = textLabel(o.text, 13, { fill: on ? 0xffffff : PALETTE.ink, fontWeight: '800' });
+      t.anchor.set(0.5);
+      const w = t.width + 30;
+      const pill = new PIXI.Container();
+      pill.addChild(new PIXI.Graphics().roundRect(-w / 2, -16, w, 32, 16).fill(on ? PALETTE.sage : 0xffffff).stroke({ width: 2, color: on ? PALETTE.sage : PALETTE.cellEdge }), t);
+      pill.w = w;
+      pill.eventMode = 'static';
+      pill.cursor = 'pointer';
+      pill.on('pointertap', () => {
+        if (!this.locked && !this.disabled) this.setAllArrangements(o.value);
+      });
+      return pill;
+    });
+    const label = textLabel('Metaphase arrangement:', 13, { fill: PALETTE.inkSoft, fontWeight: '800' });
+    label.anchor.set(0, 0.5);
+    const gap = 10;
+    const total = label.width + gap + pills.reduce((s, p) => s + p.w, 0) + gap * (pills.length - 1);
+    // Narrow screens: drop the label so the two choices still fit.
+    const showLabel = total <= this.rect.w - 8;
+    let x = this.rect.x + this.rect.w / 2 - (showLabel ? total : total - label.width - gap) / 2;
+    const y = this.rect.y + 22;
+    if (showLabel) {
+      label.position.set(x, y);
+      bar.addChild(label);
+      x += label.width + gap;
+    }
+    for (const p of pills) {
+      p.position.set(x + p.w / 2, y);
+      bar.addChild(p);
+      x += p.w + gap;
+    }
+    this.root.addChild(bar);
   }
 
   // The tray of draggable pieces along the bottom.
@@ -739,8 +800,11 @@ export class CellBuilder {
     const h = this.hits;
     if (h.trash && inRect(p, h.trash) && ['move-chrom', 'move-x'].includes(payload.type)) return { kind: 'trash' };
     const nucleusAt = h.nuclei.find((r) => ((p.x - r.cx) / r.rx) ** 2 + ((p.y - r.cy) / r.ry) ** 2 <= 1);
+    // At metaphase, a chromosome dropped on the dashed plate lines up with its centromere on it.
+    const plateAt = h.plates.find((pl) => Math.abs(p.x - pl.cx) < 18 && Math.abs(p.y - pl.cy) < pl.ry * 0.86);
     switch (payload.type) {
       case 'new-chrom':
+        if (plateAt) return { kind: 'plate', ...plateAt };
         return nucleusAt ? { kind: 'nucleus', ...nucleusAt } : null;
       case 'allele': {
         const hit = h.chromatids.find((c) => inRect(p, c.bounds));
@@ -755,6 +819,8 @@ export class CellBuilder {
         return !this.fixedNuclei && this.nuclei.length < this.maxNuclei && inRect(p, h.area) ? { kind: 'area' } : null;
       case 'move-chrom': {
         const onto = h.chromosomes.find((c) => c.chrom !== payload.chrom && !c.bivalent && c.chrom.chrom === payload.chrom.chrom && inRect(p, c.bounds));
+        // On a plate already lined up single file, dropping on the plate adds to the line rather than pairing.
+        if (plateAt && (plateAt.nucleus.arrangement === 'plate' || !onto)) return { kind: 'plate', ...plateAt };
         if (onto) return { kind: 'pair', ...onto };
         return nucleusAt ? { kind: 'nucleus', ...nucleusAt } : null;
       }
@@ -769,6 +835,7 @@ export class CellBuilder {
     const glow = { width: 4, color: PALETTE.ochre };
     if (t.kind === 'trash') g.roundRect(t.x ?? this.hits.trash.x, this.hits.trash.y + 4, this.hits.trash.width, this.hits.trash.height - 8, 10).stroke({ width: 4, color: TRASH });
     else if (t.kind === 'nucleus') g.ellipse(t.cx, t.cy, t.rx, t.ry).stroke(glow);
+    else if (t.kind === 'plate') g.moveTo(t.cx, t.cy - t.ry * 0.86).lineTo(t.cx, t.cy + t.ry * 0.86).stroke({ width: 6, color: PALETTE.ochre, alpha: 0.8, cap: 'round' });
     else if (t.kind === 'area') g.rect(this.hits.area.x + 4, this.hits.area.y + 4, this.hits.area.width - 8, this.hits.area.height - 8).stroke({ ...glow, alpha: 0.6 });
     else if (t.bounds) g.roundRect(t.bounds.x - 4, t.bounds.y - 4, t.bounds.width + 8, t.bounds.height + 8, 8).stroke(glow);
   }
@@ -814,6 +881,7 @@ export class CellBuilder {
       case 'new-chrom': {
         const chromatids = Array.from({ length: payload.copies }, () => ({ alleles: Object.fromEntries(def.loci.map((l) => [l.id, null])) }));
         t.nucleus.items.push({ id: uid(), kind: 'chromosome', chrom: def.id, chromatids });
+        if (t.kind === 'plate') t.nucleus.arrangement = 'plate';
         break;
       }
       case 'allele': {
@@ -834,7 +902,12 @@ export class CellBuilder {
         break;
       case 'move-chrom':
         if (t.kind === 'trash') this.detach(payload.chrom);
-        else if (t.kind === 'pair') {
+        else if (t.kind === 'plate') {
+          // Line it up on this nucleus's plate: single file, centromere on the plate.
+          this.detach(payload.chrom);
+          t.nucleus.items.push(payload.chrom);
+          t.nucleus.arrangement = 'plate';
+        } else if (t.kind === 'pair') {
           this.detach(payload.chrom);
           const at = this.locate(t.chrom);
           at.nucleus.items.splice(at.index, 1, { id: uid(), kind: 'bivalent', chrom: t.chrom.chrom, homologs: [t.chrom, payload.chrom], crossovers: [] });

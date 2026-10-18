@@ -83,7 +83,7 @@ function randomCreature(rng, species) {
 
 function showHub() {
   document.body.dataset.view = 'hub';
-  document.title = 'Gorby Genetics';
+  document.title = 'Bdellbee Genetics';
   clear(els.crumbs);
   host(els.heroStage, 0xebe3d4);
 
@@ -165,7 +165,7 @@ async function showModule(entry, params) {
     history.replaceState(null, '', `#/m/${entry.id}?seed=${seed}`);
   }
   document.body.dataset.view = 'module';
-  document.title = `${entry.title} · Gorby Genetics`;
+  document.title = `${entry.title} · Bdellbee Genetics`;
   clear(els.crumbs).append(h('a', { href: '#/' }, 'All modules'), h('span', {}, '›'), h('span', {}, `Module ${entry.n}`));
   host(els.stage, PALETTE.paper);
   clear(els.panel);
