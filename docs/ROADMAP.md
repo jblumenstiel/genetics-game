@@ -26,12 +26,17 @@ crossovers needed for a stated gamete, 6. metaphase II, 7. gametes, 8. gamete ge
 | Module 9 | Two linked loci plus one unlinked (the A B ; c exam question) |
 | Module 11 | Non-disjunction at MI or MII |
 
-## Unit A: Segregation and dominance
+## Meiosis
 
 | # | Module | Core interaction | Exam |
 |---|--------|------------------|------|
 | 0 | **Build the cell** (built) | Keep or change the parents' one-line genotypes, then choose a zygote they could produce from options that include genotypes impossible for a diploid autosomal gene or for these parents (each explained); assemble egg, sperm, zygote, mitotic metaphase, daughter cells, metaphase I (with crossover marking), metaphase II and gametes; list gamete genotypes and frequencies. Questions b to h follow the zygote the student built, or another genotype they choose. Graded against the engine, with feedback per misconception | chromatids per chromosome; mitosis vs meiosis outcomes; drawing meiosis |
-| 1 | **One gene, one meiosis** (built) | Step a cell through meiosis or mitosis, answering chromatid-count checkpoints; flip bivalent orientation at Metaphase I; fertilize gametes to fill a Punnett square; predict then breed 1/10/100 offspring; detective puzzle inferring parent genotypes from a litter; conditional probability (P(SS given spotted)) | chromatids per chromosome; mitosis vs meiosis; Punnett square meaning; selfing ratios; P(WW given round) |
+
+## Unit A: Segregation and dominance
+
+| # | Module | Core interaction | Exam |
+|---|--------|------------------|------|
+| 1 | **One gene, one meiosis** (built, under construction) | Step a cell through meiosis or mitosis, answering chromatid-count checkpoints; flip bivalent orientation at Metaphase I; fertilize gametes to fill a Punnett square; predict then breed 1/10/100 offspring; detective puzzle inferring parent genotypes from a litter; conditional probability (P(SS given spotted)) | chromatids per chromosome; mitosis vs meiosis; Punnett square meaning; selfing ratios; P(WW given round) |
 | 2 | Two genes, two chromosomes | Independent orientation of two bivalents; 9:3:3:1 emerges; product rule for A/a; B/b; C/c selfs | product rule, multi-locus genotype probabilities |
 | 3 | Dominance zoo | Complete, incomplete, codominance, haploinsufficiency, recessive lethals (2:1), gamete viability effects | dominant allele identification, haplosufficiency, reduced-viability gametes |
 | 4 | Complementation | Auxotrophic creatures/fungi on minimal and supplemented media; build complementation groups from a cross grid | media choice, complementation groups, number of genes |

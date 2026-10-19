@@ -6,6 +6,7 @@
 // questions b to h follow, unless they pick a different genotype to follow.
 
 import { h, clear } from '../../core/dom.js';
+import { unitLabel } from '../registry.js';
 import { makeRng, pick, int } from '../../core/rng.js';
 import { PALETTE } from '../../core/palette.js';
 import { haplotype, diploid, chromosome, makeCell, allelesAt } from '../../engine/genome.js';
@@ -248,7 +249,7 @@ class DrawingModule {
       h(
         'div',
         {},
-        h('div', { class: 'eyebrow' }, `Module ${entry.n} · Unit ${entry.unit.id}`),
+        h('div', { class: 'eyebrow' }, `Module ${entry.n} · ${unitLabel(entry.unit)}`),
         h('h1', {}, entry.title),
         h(
           'p',

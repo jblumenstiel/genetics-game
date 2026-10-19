@@ -1,10 +1,12 @@
 // Every planned module, in course order. Modules with a load() function are playable; the rest show on the
 // hub as planned. See docs/ROADMAP.md for the full descriptions.
 
+// A unit with `bare: true` is shown by its title alone ("Meiosis") rather than as "Unit A. ...".
 export const UNITS = [
   {
-    id: 'A',
-    title: 'Segregation and dominance',
+    id: 'meiosis',
+    title: 'Meiosis',
+    bare: true,
     modules: [
       {
         n: 0,
@@ -14,12 +16,19 @@ export const UNITS = [
         exam: true,
         load: () => import('./m00-drawing/index.js'),
       },
+    ],
+  },
+  {
+    id: 'A',
+    title: 'Segregation and dominance',
+    modules: [
       {
         n: 1,
         id: 'segregation',
         title: 'One gene, one meiosis',
         blurb: 'Walk a cell through meiosis and mitosis, fertilize gametes into a Punnett square, breed a litter, then solve for hidden parents.',
         exam: true,
+        underConstruction: true,
         load: () => import('./m01-segregation/index.js'),
       },
       { n: 2, id: 'assortment', title: 'Two genes, two chromosomes', blurb: 'Independent orientation of two bivalents; 9:3:3:1 and the product rule.', exam: true },
@@ -100,4 +109,9 @@ export function findModule(id) {
     if (m) return { ...m, unit };
   }
   return null;
+}
+
+// How a unit is named in headings and module eyebrows: "Meiosis" or "Unit A".
+export function unitLabel(unit) {
+  return unit.bare ? unit.title : `Unit ${unit.id}`;
 }

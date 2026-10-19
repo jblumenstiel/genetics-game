@@ -1,7 +1,7 @@
 // Boots Pixi once and routes between the hub (#/) and modules (#/m/<id>?seed=<n>).
 // The single canvas moves between the hub hero and the module stage.
 
-import { UNITS, findModule } from './modules/registry.js';
+import { UNITS, findModule, unitLabel } from './modules/registry.js';
 import { Tweener } from './core/tween.js';
 import { makeRng, randomSeed, pick } from './core/rng.js';
 import { h, clear } from './core/dom.js';
@@ -124,7 +124,12 @@ function showHub() {
       h(
         'section',
         { class: 'unit' },
-        h('div', { class: 'unit-head' }, h('h2', {}, `Unit ${unit.id}. ${unit.title}`), h('span', {}, `${unit.modules.length} modules`)),
+        h(
+          'div',
+          { class: 'unit-head' },
+          h('h2', {}, unit.bare ? unit.title : `${unitLabel(unit)}. ${unit.title}`),
+          h('span', {}, `${unit.modules.length} module${unit.modules.length === 1 ? '' : 's'}`),
+        ),
         h(
           'div',
           { class: 'cards' },
@@ -138,7 +143,7 @@ function showHub() {
               h(
                 'div',
                 { class: 'card-foot' },
-                m.exam ? h('span', { class: 'tag' }, 'Exam I topic') : h('span'),
+                h('span', { class: 'tags' }, m.exam ? h('span', { class: 'tag' }, 'Exam I topic') : null, m.underConstruction ? h('span', { class: 'tag construction' }, 'Under construction') : null),
                 m.load ? h('a', { class: 'btn primary small', href: `#/m/${m.id}` }, 'Play') : h('span', { class: 'tag planned' }, 'Planned'),
               ),
             ),

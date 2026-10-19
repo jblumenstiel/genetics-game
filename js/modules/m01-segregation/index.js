@@ -2,6 +2,7 @@
 // Five steps share one generated instance: meiosis vs mitosis, gametes, fertilization, breeding, detective.
 
 import { h, clear } from '../../core/dom.js';
+import { unitLabel } from '../registry.js';
 import { buildInstance } from './instance.js';
 import { MeiosisStep } from './meiosis-step.js';
 import { GametesStep } from './gametes-step.js';
@@ -41,7 +42,7 @@ class SegregationModule {
       h(
         'div',
         {},
-        h('div', { class: 'eyebrow' }, `Module ${entry.n} · Unit ${entry.unit.id}`),
+        h('div', { class: 'eyebrow' }, `Module ${entry.n} · ${unitLabel(entry.unit)}`),
         h('h1', {}, entry.title),
         h(
           'p',
@@ -53,6 +54,14 @@ class SegregationModule {
           ` (${DOMINANCE[trait.dominance]}). ${trait.alleles.map((a) => `${a.label}: ${a.note}`).join('; ')}.`,
         ),
       ),
+      entry.underConstruction
+        ? h(
+            'div',
+            { class: 'callout construction' },
+            h('b', {}, '🚧 Under construction'),
+            'This module is still being built. Parts of it may change or not work as expected yet.',
+          )
+        : '',
       this.stepper,
       this.body,
       h(

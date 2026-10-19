@@ -208,3 +208,8 @@ body[data-view='loading'] .play { display: none; }
 .picker-label { font-size: 14px; font-weight: 700; }
 
 .panel-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-soft); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+/* Under-construction notices */
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag.construction { background: var(--clay-wash); color: #9a5a3d; }
+.callout.construction { background: var(--clay-wash); }
