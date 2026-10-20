@@ -7,7 +7,7 @@
 
 import { h, clear } from '../../core/dom.js';
 import { unitLabel } from '../registry.js';
-import { makeRng, pick, int } from '../../core/rng.js';
+import { makeRng, pick, int, shuffle } from '../../core/rng.js';
 import { PALETTE } from '../../core/palette.js';
 import { haplotype, diploid, chromosome, makeCell, allelesAt } from '../../engine/genome.js';
 import { meiosis } from '../../engine/meiosis.js';
@@ -384,18 +384,52 @@ class DrawingModule {
 
   // An egg and a sperm, each carrying a gamete genotype this individual can make, meet and begin to fuse; then a
   // new bdellbee appears. Picks are random; the creature's genotype is not shown.
-  playBirth(gametes) {
+  playBirth(gametes, { again = false } = {}) {
+    const previous = this.birth?.features;
     this.stopBirth();
+    this.birthGametes = gametes;
+    this.birthCount = again ? (this.birthCount ?? 0) + 1 : 0;
     const any = (list) => list[Math.floor(Math.random() * list.length)];
-    const species = any(Object.values(SPECIES));
-    const trait = any(Object.values(TRAITS));
+    const randomFeatures = () => {
+      const trait = any(Object.values(TRAITS));
+      return creatureFeatures(any(Object.values(SPECIES)), [trait.express(any(allGenotypes(trait)))]);
+    };
+    let features = randomFeatures();
+    for (let tries = 0; previous && JSON.stringify(features) === JSON.stringify(previous) && tries < 20; tries++) features = randomFeatures();
     this.birth = {
       egg: any(gametes),
       sperm: any(gametes),
-      features: creatureFeatures(species, [trait.express(any(allGenotypes(trait)))]),
+      features,
+      title: this.birthCount === 0 ? 'A new bdellbee is born!' : 'Another bdellbee is born!',
       done: false,
     };
     this.animateBirth(false);
+  }
+
+  anotherBirth() {
+    if (this.birthGametes) this.playBirth(this.birthGametes, { again: true });
+  }
+
+  // Buttons under the new bdellbee: make another one, or go back to the main page.
+  drawBirthButtons(layer, w, y) {
+    const make = (text, primary, onTap) => {
+      const t = textLabel(text, 14, { fill: primary ? 0xffffff : PALETTE.ink, fontWeight: '800', wordWrap: true, wordWrapWidth: Math.min(w - 64, 420), align: 'center' });
+      t.anchor.set(0.5);
+      const bw = t.width + 32;
+      const bh = t.height + 18;
+      const b = new PIXI.Container();
+      b.addChild(new PIXI.Graphics().roundRect(-bw / 2, -bh / 2, bw, bh, 12).fill(primary ? PALETTE.sage : 0xffffff).stroke({ width: 2, color: primary ? PALETTE.sage : PALETTE.cellEdge }), t);
+      b.eventMode = 'static';
+      b.cursor = 'pointer';
+      b.on('pointertap', onTap);
+      b.h = bh;
+      return b;
+    };
+    const again = make('Pick another random set of egg and sperm genotypes and make a different bdellbee!', true, () => this.anotherBirth());
+    const home = make('Return to main page', false, () => this.goHome());
+    again.position.set(w / 2, y + again.h / 2);
+    home.position.set(w / 2, y + again.h + 12 + home.h / 2);
+    layer.addChild(again, home);
   }
 
   async animateBirth(instant) {
@@ -410,7 +444,7 @@ class DrawingModule {
 
     const { w, h: hgt } = this.ctx.size();
     const kid = Math.max(70, Math.min(110, hgt * 0.17));
-    const R = Math.max(45, Math.min(w * 0.15, (hgt - 90 - kid * 1.5) / 2.2));
+    const R = Math.max(40, Math.min(w * 0.15, (hgt - 90 - kid * 1.5 - 120) / 2.2));
     const ex = w * 0.36;
     const ey = 70 + R + 10;
     const headRx = R * 0.8;
@@ -470,7 +504,7 @@ class DrawingModule {
     };
 
     const title = new PIXI.Text({
-      text: 'A new bdellbee is born!',
+      text: b.title,
       style: { fontFamily: 'Fraunces, Georgia, serif', fontWeight: '600', fontSize: 28, fill: PALETTE.ink },
       resolution: 2,
     });
@@ -481,12 +515,14 @@ class DrawingModule {
 
     layer.addChild(egg, sperm, fusion, title, creature);
 
+    const buttonsY = creature.y + kid * 0.75 + 14;
     if (instant) {
       sperm.position.set(contactX, ey);
       phase = 0;
       drawTail(0.35);
       fuse.k = 1;
       drawFusion();
+      this.drawBirthButtons(layer, w, buttonsY);
       return;
     }
 
@@ -510,10 +546,11 @@ class DrawingModule {
     if (!alive()) return;
     await tw.to(creature.scale, { x: 1, y: 1 }, { duration: 650, ease: 'outBack' });
     if (!alive()) return;
-    // The simple animation stops here: the tail comes to rest.
+    // The simple animation stops here: the tail comes to rest, and the buttons appear.
     tw.ticker.remove(this.birthFrame);
     this.birthFrame = null;
     b.done = true;
+    this.drawBirthButtons(layer, w, buttonsY);
   }
 
   // ---- intro ----
@@ -1175,17 +1212,32 @@ class DrawingModule {
     }
   }
 
+  // Gamete genotypes offered in question h: the haploid ones (one allele) mixed with look-alikes built from this
+  // individual's alleles that are not haploid (its own diploid genotype, two or three copies).
+  gameteChoices() {
+    const { up, low, seed } = this.inst;
+    const notHaploid = [g(this.follow.alleles), `${up};${up}`, `${up}${up}${up}`, `${up}${low};${up}${low}`];
+    const all = [...new Set([up, low, ...notHaploid])];
+    return shuffle(makeRng(seed + 11), all).map((text) => ({ text, haploid: text === up || text === low }));
+  }
+
   // Question h: a typed list of genotypes and frequencies.
   renderList(body) {
     const { up, low, L } = this.inst;
     const expected = gameteDistribution(allelesAt(this.derived().zygote, L));
+    const choices = this.gameteChoices();
+    const haploid = (text) => choices.find((c) => c.text === text)?.haploid ?? true;
+    const NOT_HAPLOID = 'Gametes are haploid. Under normal meiosis, this is not a proper genotype for a gamete.';
     if (!this.listRows) this.listRows = [{ g: '', f: '' }];
     const rows = h('div', { class: 'picker' });
     const draw = () => {
       clear(rows);
       this.listRows.forEach((r, i) => {
-        const sel = h('select', { class: 'choice', 'aria-label': `Genotype ${i + 1}` }, h('option', { value: '' }, 'genotype…'), [up, low].map((a) => h('option', { value: a, selected: r.g === a }, a)));
-        sel.addEventListener('change', () => (r.g = sel.value));
+        const sel = h('select', { class: 'choice', 'aria-label': `Genotype ${i + 1}` }, h('option', { value: '' }, 'genotype…'), choices.map((c) => h('option', { value: c.text, selected: r.g === c.text }, c.text)));
+        sel.addEventListener('change', () => {
+          r.g = sel.value;
+          draw();
+        });
         const freq = h('input', { class: 'choice', type: 'text', value: r.f, placeholder: 'frequency, e.g. 1/4', 'aria-label': `Frequency ${i + 1}` });
         freq.addEventListener('input', () => (r.f = freq.value));
         rows.append(
@@ -1208,6 +1260,7 @@ class DrawingModule {
                 )
               : null,
           ),
+          r.g && !haploid(r.g) ? h('div', { class: 'feedback bad' }, NOT_HAPLOID) : '',
         );
       });
     };
@@ -1217,6 +1270,7 @@ class DrawingModule {
       const filled = this.listRows.filter((r) => r.g || r.f);
       const problems = [];
       const seen = new Set();
+      for (const r of filled) if (r.g && !haploid(r.g)) problems.push(NOT_HAPLOID);
       for (const r of filled) {
         if (!r.g) problems.push('Pick a genotype for every row.');
         else if (seen.has(r.g)) problems.push(`${r.g} is listed twice.`);
