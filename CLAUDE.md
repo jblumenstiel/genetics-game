@@ -76,6 +76,9 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
   `css/style.css`; type is Fraunces (headings) and Nunito (body).
 - The creatures are gorbies, glubbins and chomnies; "bdellbee" is the general name for a creature in the game.
   Sperm are drawn as an oval head wider than tall with a wavy tail on the right; eggs are round.
+- **Bdellbee phenotype (provisional; may change):** each gene gets one bdellbee look per problem. It is colored
+  when the dominant allele is present (homozygous or heterozygous) and white when homozygous recessive. No
+  genotype is written on the creature.
 
 ## Current state and deferred work
 

@@ -432,7 +432,7 @@ class DrawingModule {
       b.h = bh;
       return b;
     };
-    const again = make('Pick another random set of egg and sperm genotypes and make a different bdellbee!', true, () => this.anotherBirth());
+    const again = make('Pick another random set of egg and sperm genotypes and make another bdellbee!', true, () => this.anotherBirth());
     const home = make('Return to main page', false, () => this.goHome());
     again.position.set(w / 2, y + again.h / 2);
     home.position.set(w / 2, y + again.h + 12 + home.h / 2);
