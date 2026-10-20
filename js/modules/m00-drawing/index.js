@@ -17,10 +17,10 @@ import { genotypeOptions, zygoteFromParents, IMPOSSIBLE_NOTE } from '../../engin
 import { label as textLabel } from '../../render/chromosome.js';
 import { CellBuilder } from '../../builder/cell-builder.js';
 import { Creature } from '../../render/creature.js';
-import { SPECIES, TRAITS, creatureFeatures } from '../../species/catalog.js';
-import { allGenotypes } from '../../engine/cross.js';
+import { SPECIES, creatureFeatures } from '../../species/catalog.js';
 
 const LETTERS = ['A', 'B', 'D', 'E', 'G', 'H', 'R', 'T'];
+const WHITE_BDELLBEE = 0xfbf9f4;
 
 function buildInstance(seed) {
   const rng = makeRng(seed);
@@ -385,25 +385,32 @@ class DrawingModule {
   // An egg and a sperm, each carrying a gamete genotype this individual can make, meet and begin to fuse; then a
   // new bdellbee appears. Picks are random; the creature's genotype is not shown.
   playBirth(gametes, { again = false } = {}) {
-    const previous = this.birth?.features;
     this.stopBirth();
     this.birthGametes = gametes;
     this.birthCount = again ? (this.birthCount ?? 0) + 1 : 0;
     const any = (list) => list[Math.floor(Math.random() * list.length)];
-    const randomFeatures = () => {
-      const trait = any(Object.values(TRAITS));
-      return creatureFeatures(any(Object.values(SPECIES)), [trait.express(any(allGenotypes(trait)))]);
-    };
-    let features = randomFeatures();
-    for (let tries = 0; previous && JSON.stringify(features) === JSON.stringify(previous) && tries < 20; tries++) features = randomFeatures();
+    const egg = any(gametes);
+    const sperm = any(gametes);
     this.birth = {
-      egg: any(gametes),
-      sperm: any(gametes),
-      features,
+      egg,
+      sperm,
+      features: this.bdellbeeFor([egg, sperm]),
       title: this.birthCount === 0 ? 'A new bdellbee is born!' : 'Another bdellbee is born!',
       done: false,
     };
     this.animateBirth(false);
+  }
+
+  // The bdellbee for this gene: one look chosen per problem (species, ears, tail), colored whenever the dominant
+  // allele is present and white when homozygous recessive (complete dominance).
+  bdellbeeFor(alleles) {
+    if (!this.bdellbeeLook) {
+      const rng = makeRng(this.inst.seed ^ 0x5bd1e995);
+      const species = pick(rng, Object.values(SPECIES));
+      this.bdellbeeLook = creatureFeatures(species, [{ features: { ears: pick(rng, ['perky', 'floppy', 'nub']), tail: pick(rng, ['curly', 'straight', 'none']) } }]);
+    }
+    const dominant = alleles.includes(this.inst.up);
+    return { ...this.bdellbeeLook, bodyColor: dominant ? this.bdellbeeLook.bodyColor : WHITE_BDELLBEE };
   }
 
   anotherBirth() {
