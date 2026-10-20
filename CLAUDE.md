@@ -51,6 +51,12 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
 - Use one-line genotype notation: `/` separates alleles on homologs, ` ; ` separates genes on different
   chromosomes. Genotype pickers mix possible and impossible options; an impossible choice shows "This is not a
   possible genotype under standard conditions." with the reason.
+- **Gamete pickers include non-haploid look-alikes.** Whenever students choose gamete genotypes, mix the real
+  gametes with options built from the individual's alleles that are not haploid: its diploid genotype (H/h), two
+  copies (H;H), three copies (HHH), doubled sets (Hh;Hh); with more genes, things like A/a ; B/b or AaBb. Choosing
+  one shows "Gametes are haploid. Under normal meiosis, this is not a proper genotype for a gamete."
+  Exception: in non-disjunction modules (MI or MII), some disomic or nullisomic gametes are correct. The prompt
+  must say the question is about the abnormal case of non-disjunction, and only then are those gametes accepted.
 - State the assumptions in prompts (for example "a diploid organism, and an autosomal gene").
 - Gate counting questions before building where it teaches something, for example "After Meiosis I, there are
   how many nuclei?" (1 or 2), "After Meiosis II, how many gametes?" (1, 2 or 4).
