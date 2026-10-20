@@ -87,6 +87,8 @@ class DrawingModule {
     this.scene.addChild(this.nucleiBar);
     this.nucleiPick = {}; // step id -> number chosen
     this.nucleiOk = new Set(); // step ids answered correctly
+    this.introLayer = new PIXI.Container();
+    this.scene.addChild(this.introLayer);
 
     this.buildPanel();
     this.go(0);
@@ -144,11 +146,17 @@ class DrawingModule {
     const d = () => this.derived();
     return [
       {
+        id: 'intro',
+        title: 'Intro',
+        intro: true,
+        prompt: () => '',
+      },
+      {
         id: 'a',
         title: 'Egg and sperm',
         prompt: () =>
           `This is a diploid organism, and gene ${this.inst.L} is autosomal (it is not on a sex chromosome). Keep the parents’ genotypes below or choose your own, then choose a zygote genotype these parents could produce. Then build the egg and the sperm that would make it: in each, show the chromosomes, the correct number of chromatids, and the allele on every chromatid. The rest of the exercise follows the zygote you choose.`,
-        start: [{ label: 'Egg' }, { label: 'Sperm' }],
+        start: [{ label: 'Egg' }, { label: 'Sperm', shape: 'sperm' }],
         fixed: true,
       },
       {
@@ -278,7 +286,7 @@ class DrawingModule {
           h(
             'button',
             { class: [i === this.index ? 'current' : '', this.done.has(s.id) ? 'done' : ''].join(' ').trim(), onclick: () => this.go(i) },
-            `${s.id}. ${s.title}`,
+            s.intro ? s.title : `${s.id}. ${s.title}`,
           ),
         ),
       ),
@@ -294,14 +302,15 @@ class DrawingModule {
     this.builder.maxNuclei = s.maxNuclei ?? 4;
     this.builder.crossovers = !!s.crossovers;
     this.builder.metaphase = !!s.metaphase;
-    this.builder.root.visible = !s.list && this.nucleiShown(s);
-    if (!s.list) this.builder.setNuclei(this.answers[s.id] ?? s.start);
+    this.builder.root.visible = !s.list && !s.intro && this.nucleiShown(s);
+    this.introLayer.visible = !!s.intro;
+    if (!s.list && !s.intro) this.builder.setNuclei(this.answers[s.id] ?? s.start);
     this.applyLock();
     this.renderStepper();
     this.renderBody();
     this.layout();
     this.ctx.panel.scrollTop = 0;
-    if (i === 0 && !this.demoSeen()) setTimeout(() => this.playDemo(), 500);
+    if (s.id === 'a' && !this.demoSeen()) setTimeout(() => this.playDemo(), 500);
   }
 
   // The how-to animation plays once per browser; the panel has a button to replay it.
@@ -314,7 +323,7 @@ class DrawingModule {
   }
 
   async playDemo() {
-    if (this.step.list || this.destroyed) return;
+    if (this.step.list || this.step.intro || this.destroyed) return;
     // The demo shows at full strength even while question a waits for a zygote choice.
     this.builder.root.alpha = 1;
     this.lockNote.visible = false;
@@ -348,6 +357,141 @@ class DrawingModule {
     }
     this.layout();
     this.renderBody();
+  }
+
+  // ---- intro ----
+
+  renderIntro(body) {
+    body.append(
+      h('div', { class: 'stage-name' }, 'Introduction'),
+      h(
+        'p',
+        {},
+        'In this module, you will walk through a life cycle from a genetic and chromosomal perspective. In the first part, you will start with gamete (Egg and Sperm genotypes). Then, you will show how these produce a zygote after fertilization. This will be followed by some mitosis as the zygote develops. Finally, you will walk through the steps of meiosis, which produces the gametes you would have started with.',
+      ),
+      h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => this.go(1) }, 'Start: question a ▶')),
+    );
+  }
+
+  // The title and a circular life-cycle diagram: gametes → (fertilization) → zygote → (mitosis) → diploid cells →
+  // (meiosis) → gametes. Each arrow names the questions that cover that step.
+  drawIntro(w, hgt) {
+    const layer = this.introLayer;
+    layer.removeChildren().forEach((c) => c.destroy({ children: true }));
+    if (!this.step.intro) return;
+
+    const title = new PIXI.Text({
+      text: 'The Cycle of Diploid Life: Fertilization, Mitosis and Meiosis',
+      style: { fontFamily: 'Fraunces, Georgia, serif', fontWeight: '600', fontSize: 24, fill: PALETTE.ink, wordWrap: true, wordWrapWidth: w - 48, align: 'center' },
+      resolution: 2,
+    });
+    title.anchor.set(0.5, 0);
+    title.position.set(w / 2, 24);
+    layer.addChild(title);
+
+    const top = 24 + title.height + 52;
+    const cx = w / 2;
+    const cy = top + (hgt - top) / 2;
+    const R = Math.max(90, Math.min(w * 0.3, (hgt - top) * 0.36));
+    const nodeR = R * 0.27;
+
+    // Stages at three points of the circle, clockwise from the top.
+    const nodes = [
+      { angle: -Math.PI / 2, label: 'Egg + sperm', sub: 'gametes (n)', noDisc: true, draw: (g, x, y, r) => this.drawGametesIcon(g, x, y, r * 1.25) },
+      { angle: Math.PI / 6, label: 'Zygote', sub: 'one cell (2n)', draw: (g, x, y, r) => this.drawCellIcon(g, x, y, r, 1) },
+      { angle: (5 * Math.PI) / 6, label: 'Diploid cells', sub: 'body and germline (2n)', draw: (g, x, y, r) => this.drawCellIcon(g, x, y, r, 3) },
+    ];
+    const arrows = [
+      { from: 0, to: 1, label: 'Fertilization', sub: 'questions a–b' },
+      { from: 1, to: 2, label: 'Mitosis', sub: 'questions c–d' },
+      { from: 2, to: 0, label: 'Meiosis', sub: 'questions e–h' },
+    ];
+
+    const g = new PIXI.Graphics();
+    layer.addChild(g);
+    const gap = nodeR / R + 0.12;
+    for (const a of arrows) {
+      const a0 = nodes[a.from].angle + gap;
+      let a1 = nodes[a.to].angle - gap;
+      if (a1 < a0) a1 += Math.PI * 2;
+      // Start each arc at its own first point, or the path joins on from the previous one.
+      g.moveTo(cx + Math.cos(a0) * R, cy + Math.sin(a0) * R).arc(cx, cy, R, a0, a1).stroke({ width: 4, color: PALETTE.sage, cap: 'round' });
+      // Arrowhead pointing along the circle (clockwise) at the end of the arc.
+      const ex = cx + Math.cos(a1) * R;
+      const ey = cy + Math.sin(a1) * R;
+      const tx = -Math.sin(a1);
+      const ty = Math.cos(a1);
+      const s = 13;
+      g.poly([ex + tx * s, ey + ty * s, ex - tx * 2 + Math.cos(a1) * s * 0.7, ey - ty * 2 + Math.sin(a1) * s * 0.7, ex - tx * 2 - Math.cos(a1) * s * 0.7, ey - ty * 2 - Math.sin(a1) * s * 0.7]).fill(PALETTE.sage);
+
+      // Step name at the arc's midpoint: outside the circle, or inside it on narrow screens where the sides
+      // have no room.
+      const mid = (a0 + a1) / 2;
+      const inside = w < 520;
+      const lr = inside ? R * 0.5 : R + 30;
+      const lx = cx + Math.cos(mid) * lr;
+      const ly = cy + Math.sin(mid) * lr;
+      const name = textLabel(a.label, 17, { fontWeight: '800', fill: PALETTE.sage });
+      const sub = textLabel(a.sub, 12, { fontWeight: '700', fill: PALETTE.inkSoft });
+      const ax = inside ? 0.5 : Math.cos(mid) > 0.25 ? 0 : Math.cos(mid) < -0.25 ? 1 : 0.5;
+      name.anchor.set(ax, 0.5);
+      sub.anchor.set(ax, 0);
+      name.position.set(lx, ly - 8);
+      sub.position.set(lx, ly + 3);
+      layer.addChild(name, sub);
+    }
+
+    for (const n of nodes) {
+      const x = cx + Math.cos(n.angle) * R;
+      const y = cy + Math.sin(n.angle) * R;
+      // A disc frames each stage, except the gametes: an outline around egg and sperm would read as a zygote.
+      if (!n.noDisc) layer.addChild(new PIXI.Graphics().circle(x, y, nodeR).fill(PALETTE.panel).stroke({ width: 2.5, color: PALETTE.cellEdge }));
+      const icon = new PIXI.Graphics();
+      n.draw(icon, x, y, nodeR * 0.72);
+      layer.addChild(icon);
+      // Stage name below its circle, or above it for the top stage so the circle's middle stays clear.
+      const label = textLabel(n.label, 15, { fontWeight: '800' });
+      const sub = textLabel(n.sub, 12, { fontWeight: '700', fill: PALETTE.inkSoft });
+      label.anchor.set(0.5, 0);
+      sub.anchor.set(0.5, 0);
+      if (Math.sin(n.angle) < -0.5) {
+        sub.position.set(x, y - nodeR - 6 - sub.height);
+        label.position.set(x, sub.y - label.height);
+      } else {
+        label.position.set(x, y + nodeR + 6);
+        sub.position.set(x, y + nodeR + 6 + label.height);
+      }
+      layer.addChild(label, sub);
+    }
+  }
+
+  // A tiny chromosome: a rounded bar in an allele color.
+  miniChromosome(g, x, y, len, color) {
+    const w = Math.max(3, len * 0.22);
+    g.roundRect(x - w / 2, y - len / 2, w, len, w / 2).fill(color);
+  }
+
+  // Egg (large cell, one chromosome) and sperm (small head with a tail, one chromosome).
+  drawGametesIcon(g, x, y, r) {
+    const ex = x - r * 0.35;
+    g.circle(ex, y, r * 0.6).fill(PALETTE.nucleus).stroke({ width: 2, color: PALETTE.cellEdge });
+    this.miniChromosome(g, ex, y, r * 0.5, PALETTE.clay);
+    const sx = x + r * 0.62;
+    g.moveTo(sx + r * 0.2, y).bezierCurveTo(sx + r * 0.45, y - r * 0.25, sx + r * 0.6, y + r * 0.25, sx + r * 0.85, y).stroke({ width: 2, color: PALETTE.cellEdge, cap: 'round' });
+    g.ellipse(sx, y, r * 0.24, r * 0.18).fill(PALETTE.nucleus).stroke({ width: 2, color: PALETTE.cellEdge });
+    this.miniChromosome(g, sx, y, r * 0.24, PALETTE.dusk);
+  }
+
+  // One or a few diploid cells, each with two homologs (one per parent color).
+  drawCellIcon(g, x, y, r, count) {
+    const spots = count === 1 ? [[0, 0, 0.62]] : [[-0.42, 0.12, 0.4], [0.42, 0.12, 0.4], [0, -0.38, 0.4]];
+    for (const [dx, dy, s] of spots) {
+      const px = x + dx * r;
+      const py = y + dy * r;
+      g.circle(px, py, r * s).fill(PALETTE.nucleus).stroke({ width: 2, color: PALETTE.cellEdge });
+      this.miniChromosome(g, px - r * s * 0.25, py, r * s * 0.9, PALETTE.clay);
+      this.miniChromosome(g, px + r * s * 0.25, py, r * s * 0.9, PALETTE.dusk);
+    }
   }
 
   // The question bar above the cell: prompt, one button per option, and feedback once one is chosen.
@@ -391,6 +535,7 @@ class DrawingModule {
 
   layout() {
     const { w, h: hgt } = this.ctx.size();
+    this.drawIntro(w, hgt);
     const top = this.drawNucleiBar(w);
     this.builder.setRect({ x: 12, y: 28 + top, w: w - 24, h: hgt - 36 - top });
     // The panel sits to the right on wide screens and below on narrow ones.
@@ -585,6 +730,7 @@ class DrawingModule {
   renderBody() {
     const s = this.step;
     const body = clear(this.body);
+    if (s.intro) return this.renderIntro(body);
     body.append(h('div', { class: 'stage-name' }, `Question ${s.id}`), h('h2', {}, s.title), h('p', {}, s.prompt()));
     if (s.id === 'a') this.renderZygote(body);
     else this.renderFollow(body);

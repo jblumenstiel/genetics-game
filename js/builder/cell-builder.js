@@ -76,12 +76,12 @@ export class CellBuilder {
   setNuclei(nuclei) {
     this.cancelDrag();
     this.stopDemo();
-    this.nuclei = nuclei.map((n) => ({ id: uid(), label: n.label ?? '', arrangement: n.arrangement ?? null, items: (n.items ?? []).map(cloneItem) }));
+    this.nuclei = nuclei.map((n) => ({ id: uid(), label: n.label ?? '', shape: n.shape ?? null, arrangement: n.arrangement ?? null, items: (n.items ?? []).map(cloneItem) }));
     this.render();
   }
 
   getNuclei() {
-    return this.nuclei.map((n) => ({ label: n.label, ...(n.arrangement ? { arrangement: n.arrangement } : {}), items: n.items.map(strip) }));
+    return this.nuclei.map((n) => ({ label: n.label, ...(n.shape ? { shape: n.shape } : {}), ...(n.arrangement ? { arrangement: n.arrangement } : {}), items: n.items.map(strip) }));
   }
 
   // Metaphase arrangement of a nucleus: 'plate' puts every chromosome single file on the plate (homologs
@@ -194,13 +194,15 @@ export class CellBuilder {
     const rows = Math.max(1, Math.ceil(n / cols));
     const cw = w / cols;
     const ch = h / rows;
-    return this.nuclei.map((nuc, i) => ({
-      nucleus: nuc,
-      cx: x + cw * ((i % cols) + 0.5),
-      cy: y + ch * (Math.floor(i / cols) + 0.5) + 10,
-      rx: cw * 0.44,
-      ry: ch * 0.38,
-    }));
+    return this.nuclei.map((nuc, i) => {
+      const r = { nucleus: nuc, cx: x + cw * ((i % cols) + 0.5), cy: y + ch * (Math.floor(i / cols) + 0.5) + 10, rx: cw * 0.44, ry: ch * 0.38 };
+      if (nuc.shape === 'sperm') {
+        r.rx *= 0.72;
+        r.ry *= 0.92;
+        r.cy -= ch * 0.05;
+      }
+      return r;
+    });
   }
 
   alleleColor(locusId, allele) {
@@ -244,6 +246,19 @@ export class CellBuilder {
 
   drawNucleus(r) {
     const { nucleus: n, cx, cy, rx, ry } = r;
+    // A sperm gets a short wavy tail trailing from the bottom of its oval head.
+    if (n.shape === 'sperm') {
+      const tail = new PIXI.Graphics();
+      const len = ry * 0.55;
+      const y0 = cy + ry - 2;
+      tail.moveTo(cx, y0);
+      for (let i = 1; i <= 24; i++) {
+        const t = i / 24;
+        tail.lineTo(cx + Math.sin(t * Math.PI * 3) * rx * 0.16 * t, y0 + len * t);
+      }
+      tail.stroke({ width: 3, color: PALETTE.cellEdge, cap: 'round', join: 'round' });
+      this.root.addChild(tail);
+    }
     const g = new PIXI.Graphics().ellipse(cx, cy, rx, ry).fill({ color: PALETTE.nucleus, alpha: 0.55 }).stroke({ width: 2.5, color: PALETTE.cellEdge });
     this.root.addChild(g);
     this.hits.nuclei.push({ nucleus: n, cx, cy, rx, ry });

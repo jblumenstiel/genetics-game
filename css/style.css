@@ -109,6 +109,8 @@ body[data-view='loading'] .play { display: none; }
 
 @media (max-width: 860px) {
   .brand-sub { display: none; }
+  .brand { font-size: 18px; white-space: nowrap; }
+  .crumbs { white-space: nowrap; font-size: 13px; }
   .hero { grid-template-columns: 1fr; padding: 12px; }
   .hero-copy { padding: 0 8px 12px; }
   .play { grid-template-columns: 1fr; grid-template-rows: 58vh auto; height: auto; }
