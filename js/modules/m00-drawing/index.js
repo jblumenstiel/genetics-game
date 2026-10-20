@@ -16,6 +16,9 @@ import { nucleusFromCell, metaphaseIINuclei, gameteNuclei, evaluate, minCrossove
 import { genotypeOptions, zygoteFromParents, IMPOSSIBLE_NOTE } from '../../engine/genotypes.js';
 import { label as textLabel } from '../../render/chromosome.js';
 import { CellBuilder } from '../../builder/cell-builder.js';
+import { Creature } from '../../render/creature.js';
+import { SPECIES, TRAITS, creatureFeatures } from '../../species/catalog.js';
+import { allGenotypes } from '../../engine/cross.js';
 
 const LETTERS = ['A', 'B', 'D', 'E', 'G', 'H', 'R', 'T'];
 
@@ -89,6 +92,9 @@ class DrawingModule {
     this.nucleiOk = new Set(); // step ids answered correctly
     this.introLayer = new PIXI.Container();
     this.scene.addChild(this.introLayer);
+    this.birthLayer = new PIXI.Container();
+    this.scene.addChild(this.birthLayer);
+    this.birthToken = 0;
 
     this.buildPanel();
     this.go(0);
@@ -190,14 +196,13 @@ class DrawingModule {
         id: 'e',
         title: 'Meiosis: Metaphase I',
         prompt: () =>
-          `One of this individual’s germline stem cells enters meiosis. It will eventually produce a gamete with genotype ${d().target}. Build the nucleus at metaphase I, choose how the chromosomes are arranged on the metaphase plate, and mark the minimum number of crossovers needed with an X.`,
+          `One of this individual’s germline stem cells enters meiosis. It will eventually produce a gamete with genotype ${d().target}. Build the nucleus at metaphase I and choose how the chromosomes are arranged on the metaphase plate.`,
         start: [{ label: 'Metaphase I' }],
         fixed: true,
         metaphase: true,
         arrangement: 'paired',
         anaphase: 'homologs',
-        crossovers: true,
-        minCross: () => d().minCross,
+        // Crossing over comes later; to bring it back, add `crossovers: true` and `minCross: () => d().minCross`.
         expected: () => [nucleusFromCell(d().zygote, { replicated: true, paired: true })],
       },
       {
@@ -273,7 +278,7 @@ class DrawingModule {
       ),
       this.stepper,
       this.body,
-      h('div', { class: 'panel-foot' }, h('span', {}, `Seed ${this.ctx.seed}`), h('button', { class: 'btn small', onclick: () => this.ctx.newSeed() }, 'New problem')),
+      h('div', { class: 'panel-foot' }, h('span', {}, `Seed ${this.ctx.seed}`), (this.footBtn = h('button', { class: 'btn small' }, 'New problem'))),
     );
   }
 
@@ -304,6 +309,10 @@ class DrawingModule {
     this.builder.metaphase = !!s.metaphase;
     this.builder.root.visible = !s.list && !s.intro && this.nucleiShown(s);
     this.introLayer.visible = !!s.intro;
+    this.stopBirth();
+    const last = i === this.steps.length - 1;
+    this.footBtn.textContent = last ? 'Return to main page' : 'New problem';
+    this.footBtn.onclick = last ? () => this.goHome() : () => this.ctx.newSeed();
     if (!s.list && !s.intro) this.builder.setNuclei(this.answers[s.id] ?? s.start);
     this.applyLock();
     this.renderStepper();
@@ -357,6 +366,154 @@ class DrawingModule {
     }
     this.layout();
     this.renderBody();
+  }
+
+  goHome() {
+    location.hash = '#/';
+  }
+
+  // ---- celebration after the gamete list ----
+
+  stopBirth() {
+    this.birthToken++;
+    this.birth = null;
+    if (this.birthFrame) this.ctx.tween.ticker.remove(this.birthFrame);
+    this.birthFrame = null;
+    this.birthLayer.removeChildren().forEach((c) => c.destroy({ children: true }));
+  }
+
+  // An egg and a sperm, each carrying a gamete genotype this individual can make, meet and begin to fuse; then a
+  // new bdellbee appears. Picks are random; the creature's genotype is not shown.
+  playBirth(gametes) {
+    this.stopBirth();
+    const any = (list) => list[Math.floor(Math.random() * list.length)];
+    const species = any(Object.values(SPECIES));
+    const trait = any(Object.values(TRAITS));
+    this.birth = {
+      egg: any(gametes),
+      sperm: any(gametes),
+      features: creatureFeatures(species, [trait.express(any(allGenotypes(trait)))]),
+      done: false,
+    };
+    this.animateBirth(false);
+  }
+
+  async animateBirth(instant) {
+    const b = this.birth;
+    if (!b) return;
+    const token = ++this.birthToken;
+    const alive = () => token === this.birthToken && !this.destroyed;
+    const tw = this.ctx.tween;
+    if (this.birthFrame) tw.ticker.remove(this.birthFrame);
+    const layer = this.birthLayer;
+    layer.removeChildren().forEach((c) => c.destroy({ children: true }));
+
+    const { w, h: hgt } = this.ctx.size();
+    const kid = Math.max(70, Math.min(110, hgt * 0.17));
+    const R = Math.max(45, Math.min(w * 0.15, (hgt - 90 - kid * 1.5) / 2.2));
+    const ex = w * 0.36;
+    const ey = 70 + R + 10;
+    const headRx = R * 0.8;
+    const headRy = R * 0.58;
+    const contactX = ex + R + headRx - R * 0.12;
+
+    // A gamete's single chromosome, labeled with its allele.
+    const chromosomeWithAllele = (x, y, len, allele, color) => {
+      const c = new PIXI.Container();
+      const wd = Math.max(8, len * 0.2);
+      c.addChild(new PIXI.Graphics().roundRect(x - wd / 2, y - len / 2, wd, len, wd / 2).fill(0xeee4d1).stroke({ width: 1.5, color: 0x9d8f78 }));
+      c.addChild(new PIXI.Graphics().roundRect(x - wd / 2 - 1, y - wd * 0.6, wd + 2, wd * 1.2, 3).fill(color));
+      const t = textLabel(allele, Math.max(12, wd * 0.95), { fill: 0xffffff, fontWeight: '800' });
+      t.anchor.set(0.5);
+      t.position.set(x, y);
+      c.addChild(t);
+      return c;
+    };
+    const colorOf = (allele) => (allele === this.inst.up ? PALETTE.clay : PALETTE.dusk);
+
+    // Egg: the round cell from the start of the module.
+    const egg = new PIXI.Container();
+    egg.addChild(new PIXI.Graphics().circle(ex, ey, R).fill(PALETTE.nucleus).stroke({ width: 3, color: PALETTE.cellEdge }));
+    egg.addChild(chromosomeWithAllele(ex, ey, R * 0.9, b.egg, colorOf(b.egg)));
+    const eggLabel = textLabel('Egg', 14, { fill: PALETTE.inkSoft, fontWeight: '800' });
+    eggLabel.anchor.set(0.5, 1);
+    eggLabel.position.set(ex, ey - R - 6);
+    egg.addChild(eggLabel);
+
+    // Sperm: an oval head about the egg's size, and a tail that wiggles as it swims in from the right.
+    const sperm = new PIXI.Container();
+    sperm.addChild(new PIXI.Graphics().ellipse(0, 0, headRx, headRy).fill(PALETTE.nucleus).stroke({ width: 3, color: PALETTE.cellEdge }));
+    sperm.addChild(chromosomeWithAllele(0, 0, headRy * 1.3, b.sperm, colorOf(b.sperm)));
+    const tail = new PIXI.Graphics();
+    sperm.addChildAt(tail, 0);
+    const spermLabel = textLabel('Sperm', 14, { fill: PALETTE.inkSoft, fontWeight: '800' });
+    spermLabel.anchor.set(0.5, 1);
+    spermLabel.position.set(0, -headRy - 6);
+    sperm.addChild(spermLabel);
+    let phase = 0;
+    const drawTail = (amp) => {
+      tail.clear().moveTo(headRx - 2, 0);
+      for (let i = 1; i <= 30; i++) {
+        const t = i / 30;
+        tail.lineTo(headRx + t * R * 1.5, Math.sin(phase + t * Math.PI * 3) * headRy * 0.32 * amp * t);
+      }
+      tail.stroke({ width: 4, color: PALETTE.cellEdge, cap: 'round', join: 'round' });
+    };
+
+    // Where the membranes meet, a patch in the cytoplasm color hides both outlines: the start of fusion.
+    const fusion = new PIXI.Graphics();
+    const fuse = { k: 0 };
+    const drawFusion = () => {
+      fusion.clear();
+      if (fuse.k <= 0.01) return;
+      fusion.ellipse(ex + R - R * 0.06, ey, R * 0.13, R * 0.36 * fuse.k).fill(PALETTE.nucleus);
+    };
+
+    const title = new PIXI.Text({
+      text: 'A new bdellbee is born!',
+      style: { fontFamily: 'Fraunces, Georgia, serif', fontWeight: '600', fontSize: 28, fill: PALETTE.ink },
+      resolution: 2,
+    });
+    title.anchor.set(0.5, 0);
+    title.position.set(w / 2, 14);
+    const creature = new Creature(b.features, { size: kid });
+    creature.position.set(w / 2, ey + R + kid * 0.75);
+
+    layer.addChild(egg, sperm, fusion, title, creature);
+
+    if (instant) {
+      sperm.position.set(contactX, ey);
+      phase = 0;
+      drawTail(0.35);
+      fuse.k = 1;
+      drawFusion();
+      return;
+    }
+
+    sperm.position.set(w + R * 2.6, ey);
+    title.alpha = 0;
+    creature.scale.set(0);
+    // The tail beats while swimming and slows as the membranes fuse.
+    const beat = { a: 1 };
+    this.birthFrame = (t) => {
+      if (!alive() || tail.destroyed) return;
+      phase += t.deltaMS / 90;
+      drawTail(beat.a);
+      drawFusion();
+    };
+    tw.ticker.add(this.birthFrame);
+    await tw.to(sperm, { x: contactX }, { duration: 2600, ease: 'outCubic' });
+    if (!alive()) return;
+    await Promise.all([tw.to(fuse, { k: 1 }, { duration: 900 }), tw.to(beat, { a: 0.35 }, { duration: 900 })]);
+    if (!alive()) return;
+    await tw.to(title, { alpha: 1 }, { duration: 600 });
+    if (!alive()) return;
+    await tw.to(creature.scale, { x: 1, y: 1 }, { duration: 650, ease: 'outBack' });
+    if (!alive()) return;
+    // The simple animation stops here: the tail comes to rest.
+    tw.ticker.remove(this.birthFrame);
+    this.birthFrame = null;
+    b.done = true;
   }
 
   // ---- intro ----
@@ -536,6 +693,7 @@ class DrawingModule {
   layout() {
     const { w, h: hgt } = this.ctx.size();
     this.drawIntro(w, hgt);
+    if (this.birth?.done) this.animateBirth(true);
     const top = this.drawNucleiBar(w);
     this.builder.setRect({ x: 12, y: 28 + top, w: w - 24, h: hgt - 36 - top });
     // The panel sits to the right on wide screens and below on narrow ones.
@@ -974,7 +1132,7 @@ class DrawingModule {
       b: 'Right. Fertilization restores two homologs, one from each parent, each still a single chromatid.',
       c: 'Right. Each homolog replicated into two identical sisters, and in mitosis they line up single file on the plate without pairing. Watch anaphase: the sisters separate to opposite poles.',
       d: 'Right. Sisters separated, so each daughter is an exact copy of the zygote.',
-      e: `Right. The homologs pair across the plate as a bivalent. No crossover is needed: the ${this.derived().target} gamete just takes a chromatid from its homolog. Watch anaphase I: the homologs separate while each keeps its two sisters.`,
+      e: 'Right. The homologs pair across the plate as a bivalent. Watch anaphase I: the homologs separate while each keeps its two sisters.',
       f: 'Right. The homologs went to different cells, each still carrying two sister chromatids, lined up on the plate. Watch anaphase II: the sisters separate.',
       g: x === y ? `Right. Four haploid gametes, all carrying ${x}.` : 'Right. Four haploid gametes, two carrying each allele.',
     }[s.id];
@@ -1082,6 +1240,8 @@ class DrawingModule {
       if (!problems.length) {
         this.done.add('h');
         this.renderStepper();
+        fb.append(h('div', { class: 'row', style: { marginTop: '8px' } }, h('button', { class: 'btn primary', onclick: () => this.goHome() }, 'Return to main page')));
+        this.playBirth([...expected.keys()]);
       }
     };
     body.append(
