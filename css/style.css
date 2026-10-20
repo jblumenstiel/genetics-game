@@ -215,3 +215,9 @@ body[data-view='loading'] .play { display: none; }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; }
 .tag.construction { background: var(--clay-wash); color: #9a5a3d; }
 .callout.construction { background: var(--clay-wash); }
+
+/* Breathing room around the step's controls: tips and "Watch how it works", then Check / Start over. */
+.tools { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin: 6px 0 16px; }
+.tools .tips { margin-bottom: 0; }
+.step .row { margin: 10px 0; row-gap: 10px; }
+.step .feedback .row { margin-bottom: 0; }

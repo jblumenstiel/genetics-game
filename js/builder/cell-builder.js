@@ -12,7 +12,7 @@
 // The builder holds drawing models (see engine/drawing.js) and redraws from them, so grading never depends on
 // where things sit on screen. It works for any karyotype and any number of loci.
 
-import { PALETTE } from '../core/palette.js';
+import { PALETTE, mix } from '../core/palette.js';
 import { label as textLabel } from '../render/chromosome.js';
 
 let nextId = 1;
@@ -76,6 +76,7 @@ export class CellBuilder {
   setNuclei(nuclei) {
     this.cancelDrag();
     this.stopDemo();
+    this.fusion = null;
     this.nuclei = nuclei.map((n) => ({ id: uid(), label: n.label ?? '', shape: n.shape ?? null, arrangement: n.arrangement ?? null, items: (n.items ?? []).map(cloneItem) }));
     this.render();
   }
@@ -197,9 +198,10 @@ export class CellBuilder {
     return this.nuclei.map((nuc, i) => {
       const r = { nucleus: nuc, cx: x + cw * ((i % cols) + 0.5), cy: y + ch * (Math.floor(i / cols) + 0.5) + 10, rx: cw * 0.44, ry: ch * 0.38 };
       if (nuc.shape === 'sperm') {
-        r.rx *= 0.72;
-        r.ry *= 0.92;
-        r.cy -= ch * 0.05;
+        // Wider than tall, whatever the slot's proportions.
+        r.rx *= 0.78;
+        r.ry = r.rx * 0.68;
+        r.cx -= cw * 0.07;
       }
       return r;
     });
@@ -231,6 +233,7 @@ export class CellBuilder {
     this.hits = { nuclei: [], chromatids: [], chromosomes: [], bivalents: [], plates: [], trash: null, area: null };
     this.pendingBounds = [];
     this.anaphaseUnits = [];
+    this.nucleusViews = [];
     const rects = this.nucleusRects();
     const minDim = Math.min(...rects.map((r) => Math.min(r.rx * 2, r.ry * 2)), 420);
     this.chromLen = Math.max(60, Math.min(200, minDim * 0.62));
@@ -242,31 +245,29 @@ export class CellBuilder {
     if (!this.readOnly) this.drawTray();
     this.highlight = new PIXI.Graphics();
     this.root.addChild(this.highlight);
+    if (this.fusion) this.applyFusion();
   }
 
   drawNucleus(r) {
     const { nucleus: n, cx, cy, rx, ry } = r;
-    // A sperm gets a short wavy tail trailing from the bottom of its oval head.
+    const nc = new PIXI.Container();
+    this.root.addChild(nc);
+    const record = { nucleus: n, view: nc, cx, cy, rx, ry, tail: null };
+    this.nucleusViews.push(record);
+    // A sperm's wavy tail trails from the right side of its oval head.
     if (n.shape === 'sperm') {
-      const tail = new PIXI.Graphics();
-      const len = ry * 0.55;
-      const y0 = cy + ry - 2;
-      tail.moveTo(cx, y0);
-      for (let i = 1; i <= 24; i++) {
-        const t = i / 24;
-        tail.lineTo(cx + Math.sin(t * Math.PI * 3) * rx * 0.16 * t, y0 + len * t);
-      }
-      tail.stroke({ width: 3, color: PALETTE.cellEdge, cap: 'round', join: 'round' });
-      this.root.addChild(tail);
+      record.tail = new PIXI.Graphics();
+      this.drawSpermTail(record.tail, cx, cy, rx, ry, 0, 1);
+      nc.addChild(record.tail);
     }
     const g = new PIXI.Graphics().ellipse(cx, cy, rx, ry).fill({ color: PALETTE.nucleus, alpha: 0.55 }).stroke({ width: 2.5, color: PALETTE.cellEdge });
-    this.root.addChild(g);
+    nc.addChild(g);
     this.hits.nuclei.push({ nucleus: n, cx, cy, rx, ry });
 
     const t = textLabel(n.label || `Nucleus ${this.nuclei.indexOf(n) + 1}`, 14, { fill: PALETTE.inkSoft, fontWeight: '800' });
     t.anchor.set(0.5, 1);
     t.position.set(cx, cy - ry - 4);
-    this.root.addChild(t);
+    nc.addChild(t);
 
     if (!this.readOnly && !this.fixedNuclei && this.nuclei.length > 1) {
       const close = new PIXI.Container();
@@ -281,7 +282,7 @@ export class CellBuilder {
         this.nuclei = this.nuclei.filter((m) => m !== n);
         this.changed();
       });
-      this.root.addChild(close);
+      nc.addChild(close);
     }
 
     if (!n.items.length && !this.readOnly) {
@@ -289,7 +290,7 @@ export class CellBuilder {
       hint.anchor.set(0.5);
       hint.position.set(cx, cy);
       hint.alpha = 0.55;
-      this.root.addChild(hint);
+      nc.addChild(hint);
     }
 
     // At metaphase the nucleus shows the plate (dashed) between two spindle poles.
@@ -302,7 +303,7 @@ export class CellBuilder {
       for (let y = cy - ry * 0.86; y < cy + ry * 0.86; y += 12) plate.moveTo(cx, y).lineTo(cx, Math.min(y + 6, cy + ry * 0.86));
       plate.stroke({ width: 2, color: PALETTE.spindle, alpha: 0.9 });
       for (const p of poles) plate.circle(p.x, p.y, 5).fill(PALETTE.spindle);
-      this.root.addChild(plate);
+      nc.addChild(plate);
       this.hits.plates.push({ nucleus: n, cx, cy, ry });
       if (n.items.length && !n.arrangement && !this.readOnly) {
         const hint = textLabel('drop chromosomes on the plate, or choose an arrangement above', 12, { fill: PALETTE.inkSoft, fontWeight: '700' });
@@ -310,7 +311,7 @@ export class CellBuilder {
         hint.position.set(cx, cy + ry * 0.62);
         hint.alpha = 0.8;
         if (hint.width > rx * 1.6) hint.scale.set((rx * 1.6) / hint.width);
-        this.root.addChild(hint);
+        nc.addChild(hint);
       }
     }
 
@@ -331,7 +332,7 @@ export class CellBuilder {
     const row = new PIXI.Container();
     row.position.set(cx, cy);
     row.scale.set(scale);
-    this.root.addChild(row);
+    nc.addChild(row);
     let at = -total / 2;
     n.items.forEach((it, i) => {
       const view = it.kind === 'bivalent' ? this.drawBivalent(it, n) : this.drawChromosome(it, { nucleus: n });
@@ -345,6 +346,18 @@ export class CellBuilder {
     // Bounds can only be read once the views are placed in the row.
     this.pendingBounds?.forEach((fn) => fn());
     this.pendingBounds = [];
+  }
+
+  // A wavy tail from the right side of a sperm head; phase moves the wave, amp scales its beat.
+  drawSpermTail(g, cx, cy, rx, ry, phase, amp) {
+    const len = Math.max(28, rx * 0.5);
+    const x0 = cx + rx - 2;
+    g.clear().moveTo(x0, cy);
+    for (let i = 1; i <= 26; i++) {
+      const t = i / 26;
+      g.lineTo(x0 + len * t, cy + Math.sin(phase + t * Math.PI * 3) * ry * 0.28 * amp * t);
+    }
+    g.stroke({ width: 3, color: PALETTE.cellEdge, cap: 'round', join: 'round' });
   }
 
   drawBivalent(it, nucleus) {
@@ -567,6 +580,63 @@ export class CellBuilder {
     t.anchor.set(0.5);
     c.addChild(t);
     return c;
+  }
+
+  // ---- fertilization ----
+
+  // Egg and sperm views, when this workspace has both.
+  gameteViews() {
+    const sperm = this.nucleusViews.find((v) => v.nucleus.shape === 'sperm');
+    const egg = this.nucleusViews.find((v) => v !== sperm);
+    return sperm && egg ? { egg, sperm } : null;
+  }
+
+  // Place the sperm `shift` (0 to 1) of the way to the egg, and draw the patch where their membranes fuse: an
+  // opaque patch in the cytoplasm color hides both outlines across the contact, `k` (0 to 1) of its full height.
+  applyFusion() {
+    const v = this.gameteViews();
+    const f = this.fusion;
+    if (!v || !f) return;
+    const { egg, sperm } = v;
+    const overlap = Math.min(egg.rx, sperm.rx) * 0.12;
+    const dx = egg.cx + egg.rx - overlap - (sperm.cx - sperm.rx);
+    sperm.view.x = dx * f.shift;
+    if (sperm.tail && !sperm.tail.destroyed) this.drawSpermTail(sperm.tail, sperm.cx, sperm.cy, sperm.rx, sperm.ry, f.phase, f.beat);
+    if (!this.fusionPatch || this.fusionPatch.destroyed) {
+      this.fusionPatch = new PIXI.Graphics();
+      this.root.addChild(this.fusionPatch);
+    }
+    this.fusionPatch.clear();
+    if (f.k > 0.01) {
+      const color = mix(PALETTE.paper, PALETTE.nucleus, 0.55);
+      this.fusionPatch.ellipse(egg.cx + egg.rx - overlap / 2, egg.cy, overlap * 1.3, Math.min(egg.ry, sperm.ry) * 0.5 * f.k).fill(color);
+    }
+  }
+
+  // Question a, once correct: the sperm swims sideways to the egg, tail beating, and the membranes fuse partway.
+  // The cell stays in that pose until the workspace is reset.
+  async fuseGametes(tween) {
+    if (!this.gameteViews() || this.locked) return;
+    this.stopDemo();
+    const token = this.demoToken;
+    const alive = () => token === this.demoToken && !this.root.destroyed;
+    this.locked = true;
+    this.fusion = { shift: 0, k: 0, phase: 0, beat: 1 };
+    const f = this.fusion;
+    const frame = (t) => {
+      if (!alive() || this.fusion !== f) return;
+      f.phase += t.deltaMS / 90;
+      this.applyFusion();
+    };
+    tween.ticker.add(frame);
+    try {
+      await tween.to(f, { shift: 1 }, { duration: 1800, ease: 'inOutCubic' });
+      if (!alive()) return;
+      await Promise.all([tween.to(f, { k: 1 }, { duration: 800 }), tween.to(f, { beat: 0.3 }, { duration: 800 })]);
+    } finally {
+      tween.ticker.remove(frame);
+      if (token === this.demoToken) this.locked = false;
+    }
   }
 
   // ---- anaphase ----

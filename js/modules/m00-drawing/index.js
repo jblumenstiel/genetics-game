@@ -1037,8 +1037,9 @@ class DrawingModule {
     }
     this.renderStepper();
     this.renderFeedback();
-    // A correct metaphase plays the anaphase that follows it, on the student's own cell.
+    // A correct metaphase plays the anaphase that follows it, on the student's own cell; correct gametes fuse.
     if (ok && s.anaphase) this.playAnaphase();
+    if (ok && s.id === 'a') this.builder.fuseGametes(this.ctx.tween);
   }
 
   playAnaphase() {
