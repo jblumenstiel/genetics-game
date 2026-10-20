@@ -19,6 +19,10 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
   or two. After a push, confirm the live site serves the new files.
 - Remind the instructor to hard refresh (Cmd+Shift+R) when checking the live site.
 - Record decisions in the repo (this file or the roadmap), not only in conversation.
+- **Suggest additions to this file.** When the instructor settles something that should hold beyond the current
+  task, offer in one line to add it here: a new feedback or teaching rule, a correction to how something is
+  drawn or worded, a feature deferred for later, or a change to the workflow. Add it only after they agree, and
+  keep the wording short. Don't suggest it for one-off fixes.
 
 ## Code conventions
 
