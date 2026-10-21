@@ -1,4 +1,4 @@
-// Step 4: predict the offspring ratio, then breed and watch the counts converge on it.
+// Step D: predict the offspring ratio, then breed and watch the counts converge on it.
 
 import { h, clear, question } from '../../core/dom.js';
 import { PALETTE } from '../../core/palette.js';
@@ -145,7 +145,14 @@ export class BreedStep {
     const body = clear(this.body);
     const [p1, p2] = this.parents;
     const answered = this.mod.state.answered;
-    body.append(h('h2', {}, 'Predict, then breed'), h('p', {}, `${p1.name} (${p1.label}) × ${p2.name} (${p2.label}).`));
+    body.append(
+      h('h2', {}, 'Predict, then breed'),
+      h(
+        'p',
+        {},
+        `${p1.name} (${p1.label}) × ${p2.name} (${p2.label}), the cross from your Punnett square. Each offspring is one fertilization: a random egg from ${p1.name} and a random sperm from ${p2.name}, landing in one cell of the square. A litter is many of these independent events.`,
+      ),
+    );
 
     if (!answered.has('breed:ratio')) {
       body.append(

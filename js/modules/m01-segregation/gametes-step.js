@@ -1,4 +1,5 @@
-// Step 2: from one meiosis to many. Predict the fraction of gametes carrying an allele, then sample.
+// Step B: from one meiosis to many gametes. Predict the fraction carrying an allele, draw single random gametes,
+// then draw them in batches until 120 stack up in one bin per allele.
 
 import { h, clear, question } from '../../core/dom.js';
 import { PALETTE } from '../../core/palette.js';
@@ -8,6 +9,10 @@ import { fraction } from '../../engine/cross.js';
 import { label } from '../../render/chromosome.js';
 import { creatureCard, gameteView } from './instance.js';
 
+const MAX = 120;
+const BATCHES = [10, 20, 30];
+const PER_ROW = 12;
+
 export class GametesStep {
   constructor(mod) {
     this.mod = mod;
@@ -15,8 +20,8 @@ export class GametesStep {
     this.parent = this.inst.meiosisParent;
     this.trait = this.inst.trait;
     this.target = this.trait.alleles[1].id;
-    this.counts = Object.fromEntries(this.trait.alleles.map((a) => [a.id, 0]));
-    this.dots = [];
+    // Kept on the module so the gametes are still there when the student comes back to this step.
+    this.s = mod.state.gametes ??= { phase: 'single', singles: [], dots: [] };
   }
 
   enter(container, body) {
@@ -26,14 +31,18 @@ export class GametesStep {
       this.mod.state.meiosisProducts = meiosis(this.parent.cell, this.inst.rng, { crossingOver: false }).products;
     }
     this.layer = new PIXI.Container();
+    this.gameteLayer = new PIXI.Container();
     this.dotLayer = new PIXI.Container();
-    container.addChild(this.layer, this.dotLayer);
+    container.addChild(this.layer, this.gameteLayer, this.dotLayer);
     const { w, h: hgt } = this.mod.ctx.size();
     this.resize(w, hgt);
     this.renderPanel();
   }
 
-  exit() {}
+  // Animations resolve when the module moves on; nothing may draw into the shared panel after that.
+  exit() {
+    this.exited = true;
+  }
 
   resize(w, hgt) {
     this.w = w;
@@ -43,6 +52,7 @@ export class GametesStep {
     const card = creatureCard(this.parent, { size });
     card.container.position.set(w * 0.2, hgt * 0.24);
     this.layer.addChild(card.container);
+    this.cardPos = { x: card.container.x, y: card.container.y };
 
     const heading = label('The four products of your meiosis', 15, { fill: PALETTE.inkSoft });
     heading.anchor.set(0.5, 0);
@@ -50,13 +60,33 @@ export class GametesStep {
     this.layer.addChild(heading);
 
     const r = Math.max(24, Math.min(42, w * 0.045));
+    this.r = r;
     this.mod.state.meiosisProducts.forEach((p, i) => {
       const g = gameteView(this.inst, p.chromosomes[0][0], r);
       g.position.set(w * 0.64 + (i - 1.5) * r * 2.5, hgt * 0.08 + 30 + r * 1.3);
       this.layer.addChild(g);
     });
+    this.pileTop = hgt * 0.08 + 30 + r * 2.6 + 30;
 
-    // Bins for sampled gametes, one column per allele.
+    if (this.s.phase === 'single') this.layoutSingle(w, hgt);
+    else this.layoutBins(w, hgt);
+  }
+
+  // Where a single random gamete lands, below the products row.
+  layoutSingle(w, hgt) {
+    this.spot = { x: w * 0.64, y: this.pileTop + Math.max(60, (hgt - this.pileTop) * 0.4), r: this.r * 1.4 };
+    const t = label(`Random gamete from ${this.parent.name}`, 15, { fill: PALETTE.inkSoft });
+    t.anchor.set(0.5, 1);
+    t.position.set(this.spot.x, this.spot.y - this.spot.r - 10);
+    this.layer.addChild(t);
+    this.spotLabel = t;
+    t.visible = this.s.singles.length > 0;
+    this.drawSingle();
+  }
+
+  // One bin per allele. Dots shrink to fit, so all 120 gametes fit in one bin when the parent is homozygous.
+  layoutBins(w, hgt) {
+    const half = Math.min(80, w * 0.14);
     this.bins = this.trait.alleles.map((a, i) => {
       const x = w * (0.35 + i * 0.3);
       const baseY = hgt - 40;
@@ -64,33 +94,41 @@ export class GametesStep {
       t.anchor.set(0.5, 0);
       t.position.set(x, baseY + 8);
       this.layer.addChild(t);
-      const line = new PIXI.Graphics().moveTo(x - 80, baseY).lineTo(x + 80, baseY).stroke({ width: 2, color: PALETTE.cellEdge });
+      const line = new PIXI.Graphics().moveTo(x - half, baseY).lineTo(x + half, baseY).stroke({ width: 2, color: PALETTE.cellEdge });
       this.layer.addChild(line);
       return { id: a.id, x, baseY };
     });
-    this.dotR = Math.max(3.5, Math.min(5.5, w * 0.008));
-    this.pileTop = hgt * 0.08 + 30 + r * 2.6 + 30;
-    this.cardPos = { x: card.container.x, y: card.container.y };
+    const room = hgt - 40 - 4 - this.pileTop;
+    this.dotStep = Math.min(5.5 * 2.3, (2 * half) / PER_ROW, room / Math.ceil(MAX / PER_ROW));
+    this.dotR = this.dotStep / 2.3;
     this.redrawDots();
   }
 
-  // Position of the nth dot in a bin, or null once the pile reaches the gametes row (the tally keeps counting).
+  drawSingle() {
+    this.gameteLayer.removeChildren().forEach((c) => c.destroy({ children: true }));
+    const last = this.s.singles.at(-1);
+    if (!last || this.s.phase !== 'single') return null;
+    const g = gameteView(this.inst, last.chromatid, this.spot.r);
+    g.position.set(this.spot.x, this.spot.y);
+    this.gameteLayer.addChild(g);
+    return g;
+  }
+
   dotTarget(binIndex, n) {
     const b = this.bins[binIndex];
-    const perRow = 12;
-    const col = n % perRow;
-    const row = Math.floor(n / perRow);
-    const step = this.dotR * 2.3;
-    const y = b.baseY - this.dotR - 4 - row * step;
+    const col = n % PER_ROW;
+    const row = Math.floor(n / PER_ROW);
+    const y = b.baseY - this.dotR - 4 - row * this.dotStep;
     if (y < this.pileTop) return null;
-    return { x: b.x + (col - (perRow - 1) / 2) * step, y };
+    return { x: b.x + (col - (PER_ROW - 1) / 2) * this.dotStep, y };
   }
 
   redrawDots() {
     this.dotLayer.removeChildren().forEach((c) => c.destroy());
+    if (this.s.phase !== 'many') return;
     const filled = this.trait.alleles.map(() => 0);
-    for (const d of this.dots) {
-      const bi = this.trait.alleles.findIndex((a) => a.id === d.allele);
+    for (const d of this.s.dots) {
+      const bi = this.binOf(d.allele);
       const p = this.dotTarget(bi, filled[bi]++);
       if (!p) continue;
       const g = new PIXI.Graphics().circle(0, 0, this.dotR).fill(d.color);
@@ -99,52 +137,74 @@ export class GametesStep {
     }
   }
 
-  // 100 gametes, each dot colored by the homolog it came from.
-  // 'tetrads': all four products of 25 meioses (a heterozygote always gives exactly half).
-  // 'random': one random product from each of 100 meioses, like one egg per meiosis (binomial wobble).
-  async sample(mode) {
-    const tw = this.mod.ctx.tween;
-    const filled = this.trait.alleles.map((a) => this.dots.filter((d) => d.allele === a.id).length);
-    const batch = [];
+  binOf(allele) {
+    return this.trait.alleles.findIndex((a) => a.id === allele);
+  }
+
+  // One gamete: a fresh meiosis through the engine, keeping one of its four products at random.
+  randomGamete() {
     const rng = this.inst.rng;
-    const add = (p) => {
-      const c = p.chromosomes[0][0];
-      batch.push({ allele: c.segments[0].hap.alleles[this.trait.id], color: c.segments[0].hap.color });
-    };
-    if (mode === 'tetrads') {
-      for (let i = 0; i < 25; i++) meiosis(this.parent.cell, rng, { crossingOver: false }).products.forEach(add);
-    } else {
-      for (let i = 0; i < 100; i++) {
-        const { products } = meiosis(this.parent.cell, rng, { crossingOver: false });
-        add(products[Math.floor(rng() * 4)]);
-      }
-    }
-    this.lastMode = mode;
-    this.modes = this.modes ?? new Set();
-    this.modes.add(mode);
-    this.sampling = true;
+    const { products } = meiosis(this.parent.cell, rng, { crossingOver: false });
+    const chromatid = products[Math.floor(rng() * 4)].chromosomes[0][0];
+    const hap = chromatid.segments[0].hap;
+    return { chromatid, allele: hap.alleles[this.trait.id], color: hap.color };
+  }
+
+  async pickSingle() {
+    const tw = this.mod.ctx.tween;
+    this.s.singles.push(this.randomGamete());
+    this.busy = true;
+    this.renderPanel();
+    this.spotLabel.visible = true;
+    const g = this.drawSingle();
+    g.position.set(this.cardPos.x, this.cardPos.y);
+    g.scale.set(0.3);
+    g.alpha = 0;
+    await Promise.all([
+      tw.to(g, { x: this.spot.x, y: this.spot.y, alpha: 1 }, { duration: 650, ease: 'outCubic' }),
+      tw.to(g.scale, { x: 1, y: 1 }, { duration: 650, ease: 'outBack' }),
+    ]);
+    if (this.exited) return;
+    this.busy = false;
+    this.renderPanel();
+  }
+
+  setPhase(phase) {
+    this.s.phase = phase;
+    this.gameteLayer.removeChildren().forEach((c) => c.destroy({ children: true }));
+    this.resize(this.w, this.h);
+    this.renderPanel();
+  }
+
+  async pickMany(n) {
+    const tw = this.mod.ctx.tween;
+    const filled = this.trait.alleles.map((a) => this.s.dots.filter((d) => d.allele === a.id).length);
+    const batch = Array.from({ length: n }, () => {
+      const { allele, color } = this.randomGamete();
+      return { allele, color };
+    });
+    this.s.dots.push(...batch);
+    this.busy = true;
     this.renderPanel();
     const anims = batch.map((d, i) => {
-      const bi = this.trait.alleles.findIndex((a) => a.id === d.allele);
+      const bi = this.binOf(d.allele);
       const p = this.dotTarget(bi, filled[bi]++);
       if (!p) return null;
       const g = new PIXI.Graphics().circle(0, 0, this.dotR).fill(d.color);
       g.position.set(this.cardPos.x, this.cardPos.y);
       g.alpha = 0;
       this.dotLayer.addChild(g);
-      return tw.to(g, { x: p.x, y: p.y, alpha: 1 }, { duration: 500, delay: i * 12, ease: 'outCubic' });
+      return tw.to(g, { x: p.x, y: p.y, alpha: 1 }, { duration: 500, delay: i * 25, ease: 'outCubic' });
     });
     await Promise.all(anims);
-    this.dots.push(...batch);
-    for (const d of batch) this.counts[d.allele]++;
-    this.sampling = false;
-    if (!this.mod.done.has('gametes')) this.mod.complete('gametes');
+    if (this.exited) return;
+    this.busy = false;
+    if (this.s.dots.length >= MAX && !this.mod.done.has('gametes')) this.mod.complete('gametes');
     this.renderPanel();
   }
 
-  reset() {
-    this.dots = [];
-    for (const k of Object.keys(this.counts)) this.counts[k] = 0;
+  resetMany() {
+    this.s.dots = [];
     this.redrawDots();
     this.renderPanel();
   }
@@ -175,7 +235,7 @@ export class GametesStep {
           })),
           onCorrect: () => {
             this.mod.state.answered.add('gametes:fraction');
-            setTimeout(() => this.renderPanel(), 900);
+            setTimeout(() => !this.exited && this.renderPanel(), 900);
           },
         }),
       );
@@ -183,24 +243,66 @@ export class GametesStep {
     }
 
     body.append(h('p', { class: 'hint' }, `✓ Expected fraction carrying ${tl}: ${fraction(p)}`));
-    const total = this.dots.length;
+    if (this.s.phase === 'single') this.renderSingle(body);
+    else this.renderMany(body, p);
+  }
+
+  renderSingle(body) {
+    const { name } = this.parent;
+    const singles = this.s.singles;
+    if (!singles.length) {
+      body.append(
+        h('p', {}, `Now let ${name} make a gamete. Which copy of the gene it gets is chosen at random.`),
+        h('div', { class: 'row' }, h('button', { class: 'btn primary', disabled: this.busy, onclick: () => this.pickSingle() }, `Produce a random gamete from ${name}`)),
+      );
+      return;
+    }
+    const al = (a) => alleleLabel(this.trait, a);
+    // While the newest gamete is still flying in, don't give away its allele.
+    const shown = this.busy ? singles.slice(0, -1) : singles;
+    const counts = this.trait.alleles.map((a) => `${shown.filter((s) => s.allele === a.id).length} ${a.label}`);
     body.append(
-      h('p', {}, 'Now test it with real meioses from the engine. Dots are colored by the homolog each gamete came from. Try both ways of collecting:'),
+      h(
+        'div',
+        { class: 'callout' },
+        h('b', {}, this.busy ? `Making gamete ${singles.length}…` : `Gamete ${singles.length} carries ${al(singles.at(-1).allele)}`),
+        shown.length ? `So far: ${shown.map((s) => al(s.allele)).join(', ')} (${counts.join(', ')}).` : '',
+      ),
       h(
         'div',
         { class: 'row' },
-        h('button', { class: 'btn primary', disabled: this.sampling, onclick: () => this.sample('random') }, '1 gamete from each of 100 meioses'),
-        h('button', { class: 'btn', disabled: this.sampling, onclick: () => this.sample('tetrads') }, 'All 4 products of 25 meioses'),
+        h('button', { class: 'btn', disabled: this.busy, onclick: () => this.pickSingle() }, 'Pick another'),
+        h('button', { class: 'btn primary', disabled: this.busy, onclick: () => this.setPhase('many') }, 'Proceed to picking large numbers of gametes'),
       ),
-      h('button', { class: 'btn small', disabled: this.sampling || !total, onclick: () => this.reset() }, 'Clear'),
     );
+  }
+
+  renderMany(body, p) {
+    const { name } = this.parent;
+    const [x, y] = this.parent.alleles;
+    const dots = this.s.dots;
+    const total = dots.length;
+    body.append(
+      h('p', {}, `Pick gametes from ${name} in batches. Each circle is one gamete, colored by the homolog it came from, and it stacks in the bin for its allele. Keep going until you have ${MAX}.`),
+    );
+    if (total < MAX) {
+      body.append(
+        h(
+          'div',
+          { class: 'row' },
+          BATCHES.map((n) =>
+            h('button', { class: n === BATCHES[0] ? 'btn primary' : 'btn', disabled: this.busy || total + n > MAX, onclick: () => this.pickMany(n) }, `Pick ${n} gametes`),
+          ),
+        ),
+      );
+    }
     if (total) {
       body.append(
         h(
           'div',
           { class: 'tally' },
           this.trait.alleles.map((a) => {
-            const n = this.counts[a.id];
+            const n = dots.filter((d) => d.allele === a.id).length;
             const exp = (Number(x === a.id) + Number(y === a.id)) / 2;
             return h(
               'div',
@@ -211,23 +313,33 @@ export class GametesStep {
             );
           }),
         ),
-        h('p', { class: 'hint' }, `${total} gametes. The dark tick marks the expected fraction.`),
-        h(
-          'div',
-          { class: 'callout' },
-          h('b', {}, this.lastMode === 'tetrads' ? 'Exactly half, every time' : 'Close to half, with wobble'),
-          this.lastMode === 'tetrads'
-            ? 'Collecting all four products of each meiosis gives exactly 2 of each allele per meiosis, because the homologs always split 2:2. Fungi let you collect whole tetrads like this. Animals usually keep one product per meiosis (one egg), so their counts wobble.'
-            : 'Keeping one random product per meiosis is like collecting eggs, or random spores: each is a coin flip, so the observed fraction wobbles around ½, and the wobble shrinks as you collect more.',
-        ),
-        h(
-          'div',
-          { class: 'callout' },
-          h('b', {}, 'Law of segregation'),
-          'The two copies of a gene separate at Meiosis I, and the orientation of the pair is random, so each gamete carries one copy with probability ½.',
-        ),
-        h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: fertilization ▶'),
+        h('p', { class: 'hint' }, `${total} of ${MAX} gametes. The dark tick marks the expected fraction.`),
       );
     }
+    if (total < MAX || this.busy) return;
+    const het = x !== y;
+    const tl = alleleLabel(this.trait, this.target);
+    body.append(
+      het
+        ? h(
+            'div',
+            { class: 'callout' },
+            h('b', {}, `Close to ${fraction(p)}, with wobble`),
+            'Each gamete is a coin flip between the two copies, so the counts wobble around the expected fraction. The more gametes you collect, the closer the fraction gets to ½.',
+          )
+        : h('div', { class: 'callout' }, h('b', {}, 'No wobble'), `Both of ${name}’s copies carry ${alleleLabel(this.trait, x)}, so every gamete carries ${alleleLabel(this.trait, x)}${p ? '' : `, and none carry ${tl}`}.`),
+      h(
+        'div',
+        { class: 'callout' },
+        h('b', {}, 'Law of segregation'),
+        'The two copies of a gene separate at Meiosis I, and the orientation of the pair is random, so each gamete carries one copy with probability ½.',
+      ),
+      h(
+        'div',
+        { class: 'row' },
+        h('button', { class: 'btn', onclick: () => this.resetMany() }, `Reset Random Gametes from ${name}`),
+        h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Proceed to fertilization ▶'),
+      ),
+    );
   }
 }

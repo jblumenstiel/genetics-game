@@ -1,4 +1,4 @@
-// Step 5: the reverse problem. Given two parents' phenotypes and a litter, infer the parents' genotypes.
+// Step E: the reverse problem. Given two parents' phenotypes and a litter, infer the parents' genotypes.
 // Hypotheses are scored by likelihood, so "possible but unlikely" answers get their own feedback.
 
 import { h, clear, question } from '../../core/dom.js';

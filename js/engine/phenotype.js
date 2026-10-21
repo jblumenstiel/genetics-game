@@ -45,10 +45,11 @@ export function alleleLabel(trait, id) {
   return trait.alleles.find((a) => a.id === id).label;
 }
 
-// "Ss" for single-letter alleles, "Cᴮ/Cᴿ" otherwise.
+// One-line notation, dominant first, with "/" between the alleles on the two homologs: "S/s", "Cᴮ/Cᴿ".
 export function genotypeLabel(trait, alleles) {
-  const labels = sortAlleles(trait, alleles).map((id) => alleleLabel(trait, id));
-  return labels.every((l) => l.length === 1) ? labels.join('') : labels.join('/');
+  return sortAlleles(trait, alleles)
+    .map((id) => alleleLabel(trait, id))
+    .join('/');
 }
 
 export function genotypeKey(trait, alleles) {

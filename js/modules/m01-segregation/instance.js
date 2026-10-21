@@ -6,15 +6,36 @@ import { haplotype, diploid, allelesAt } from '../../engine/genome.js';
 import { meiosis, fertilize } from '../../engine/meiosis.js';
 import { genotypeLabel, alleleLabel } from '../../engine/phenotype.js';
 import { allGenotypes } from '../../engine/cross.js';
-import { SPECIES, TRAITS, creatureFeatures } from '../../species/catalog.js';
+import { completeDominance } from '../../engine/phenotype.js';
+import { SPECIES, creatureFeatures } from '../../species/catalog.js';
 import { Creature } from '../../render/creature.js';
 import { ChromatidView, label } from '../../render/chromosome.js';
 import { alleleOn } from '../../engine/genome.js';
 
+const LETTERS = ['A', 'B', 'D', 'G', 'H', 'P', 'R', 'T'];
+
+// One pigment gene: the capital allele makes a working pigment enzyme (dominant), the lowercase allele is broken
+// (recessive). A bdellbee is colored when it has at least one working copy and white when it has none.
+function pigmentTrait(L) {
+  const up = L;
+  const low = L.toLowerCase();
+  return {
+    id: 'pigment',
+    name: 'Pigment',
+    dominance: 'complete',
+    alleles: [
+      { id: up, label: up, note: 'makes a working pigment enzyme' },
+      { id: low, label: low, note: 'a broken enzyme, no pigment' },
+    ],
+    express: completeDominance(up, low, { key: 'pigmented', label: 'pigmented', features: {} }, { key: 'white', label: 'white', features: { bodyColor: PALETTE.creature.white } }),
+    why: `One working copy of ${up} makes enough pigment to color the bdellbee, so ${up} is dominant and ${low} is recessive.`,
+  };
+}
+
 const NAMES = ['Pip', 'Mossy', 'Bramble', 'Tuffet', 'Wobble', 'Juniper', 'Nib', 'Puddle', 'Clover', 'Fennel', 'Burdock', 'Sorrel', 'Quill', 'Tansy'];
 
 export function makeParent(base, alleles, colors, name) {
-  const { species, trait, karyotype } = base;
+  const { trait, karyotype } = base;
   const haps = alleles.map((a, i) => haplotype({ [trait.id]: a }, { color: colors[i], origin: name }));
   const cell = diploid(karyotype, [haps]);
   const phenotype = trait.express(alleles);
@@ -23,7 +44,7 @@ export function makeParent(base, alleles, colors, name) {
     alleles,
     cell,
     phenotype,
-    features: creatureFeatures(species, [phenotype]),
+    features: base.featuresFor(phenotype),
     label: genotypeLabel(trait, alleles),
   };
 }
@@ -31,31 +52,23 @@ export function makeParent(base, alleles, colors, name) {
 export function buildInstance(seed) {
   const rng = makeRng(seed);
   const species = pick(rng, Object.values(SPECIES));
-  const roll = rng();
-  const pool = roll < 0.5 ? ['spots', 'ears', 'tail'] : roll < 0.8 ? ['color', 'antennae'] : ['pattern'];
-  const trait = TRAITS[pick(rng, pool)];
+  // Complete dominance only: a capital dominant allele and a lowercase recessive one. Other dominance modes
+  // come in Module 3.
+  const trait = pigmentTrait(pick(rng, LETTERS));
   const [A, a] = trait.alleles.map((x) => x.id);
   const pos = pick(rng, [14, 20, 26, 66, 74, 82]);
   const karyotype = [{ id: '1', name: 'Chromosome 1', length: 100, centromere: 42, loci: [{ id: trait.id, pos }] }];
-  const base = { species, trait, karyotype };
+  // Every bdellbee in a problem shares one look; only its color follows the genotype.
+  const look = { features: { ears: pick(rng, ['perky', 'floppy', 'nub']), tail: pick(rng, ['curly', 'straight', 'none']) } };
+  const base = { species, trait, karyotype, featuresFor: (phenotype) => creatureFeatures(species, [look, phenotype]) };
   const names = shuffle(rng, NAMES);
   const het = [A, a];
-  const homs = [
-    [A, A],
-    [a, a],
-  ];
   const [c0, c1, c2, c3] = PALETTE.hap;
 
-  const meiosisParent = makeParent(base, chance(rng, 0.8) ? het : pick(rng, homs), [c0, c1], names[0]);
-
-  let g1;
-  let g2;
-  const r = rng();
-  if (r < 0.45) [g1, g2] = [het, het];
-  else if (r < 0.85) [g1, g2] = [het, pick(rng, homs)];
-  else [g1, g2] = homs;
-  if (chance(rng, 0.5)) [g1, g2] = [g2, g1];
-  const parents = [makeParent(base, g1, [c0, c1], names[1]), makeParent(base, g2, [c2, c3], names[2])];
+  // The heterozygote from A and B becomes the mother in C: her gametes are eggs. The father is heterozygous too,
+  // so the Punnett square is the monohybrid cross.
+  const meiosisParent = makeParent(base, het, [c0, c1], names[0]);
+  const parents = [meiosisParent, makeParent(base, het, [c2, c3], names[2])];
 
   const genos = allGenotypes(trait);
   const pairs = [];
@@ -78,7 +91,7 @@ export function breed(inst, p1, p2, rng) {
   const zygote = fertilize(g1.cell, g2.cell);
   const alleles = allelesAt(zygote, inst.trait.id);
   const phenotype = inst.trait.express(alleles);
-  return { alleles, phenotype, label: genotypeLabel(inst.trait, alleles), features: creatureFeatures(inst.species, [phenotype]) };
+  return { alleles, phenotype, label: genotypeLabel(inst.trait, alleles), features: inst.base.featuresFor(phenotype) };
 }
 
 // Every phenotype class the trait can show, in a stable order.

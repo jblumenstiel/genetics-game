@@ -171,7 +171,7 @@ async function showModule(entry, params) {
   }
   document.body.dataset.view = 'module';
   document.title = `${entry.title} · Bdellbee Genetics`;
-  clear(els.crumbs).append(h('a', { href: '#/' }, 'All modules'), h('span', {}, '›'), h('span', {}, `Module ${entry.n}`));
+  clear(els.crumbs).append(h('a', { href: '#/' }, 'All modules'), h('span', {}, '›'), h('span', { class: 'crumb-unit' }, unitLabel(entry.unit)), h('span', { class: 'crumb-unit' }, '›'), h('span', {}, `Module ${entry.n}`));
   host(els.stage, PALETTE.paper);
   clear(els.panel);
 

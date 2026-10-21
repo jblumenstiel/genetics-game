@@ -118,6 +118,11 @@ body[data-view='loading'] .play { display: none; }
   .panel { border-left: 0; border-top: 1px solid var(--line); }
 }
 
+/* The panel eyebrow already names the unit, so phones drop it from the breadcrumb to fit. */
+@media (max-width: 480px) {
+  .crumb-unit { display: none; }
+}
+
 .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
 .panel h1 { font-family: var(--display); font-weight: 600; font-size: 26px; line-height: 1.15; margin: 2px 0 6px; }
 .meta { margin: 0; font-size: 14px; color: var(--ink-soft); }

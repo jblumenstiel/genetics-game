@@ -1,20 +1,16 @@
 // Module 1: One gene, one meiosis.
-// Five steps share one generated instance: meiosis vs mitosis, gametes, fertilization, breeding, detective.
+// An intro page, then five steps (A to E) that share one generated instance: meiosis vs mitosis, gametes,
+// fertilization, breeding, detective.
 
 import { h, clear } from '../../core/dom.js';
-import { unitLabel } from '../registry.js';
+import { moduleEyebrow, stepLetter } from '../registry.js';
 import { buildInstance } from './instance.js';
+import { IntroStep } from './intro-step.js';
 import { MeiosisStep } from './meiosis-step.js';
 import { GametesStep } from './gametes-step.js';
 import { FertilizationStep } from './fertilization-step.js';
 import { BreedStep } from './breed-step.js';
 import { DetectiveStep } from './detective-step.js';
-
-const DOMINANCE = {
-  complete: 'complete dominance',
-  incomplete: 'incomplete dominance',
-  codominant: 'codominance',
-};
 
 class SegregationModule {
   constructor(ctx) {
@@ -23,6 +19,7 @@ class SegregationModule {
     this.state = { answered: new Set() };
     this.done = new Set();
     this.steps = [
+      { id: 'intro', title: 'Intro', intro: true, make: () => new IntroStep(this) },
       { id: 'meiosis', title: 'Meiosis', make: () => new MeiosisStep(this) },
       { id: 'gametes', title: 'Gametes', make: () => new GametesStep(this) },
       { id: 'fertilization', title: 'Fertilization', make: () => new FertilizationStep(this) },
@@ -36,22 +33,25 @@ class SegregationModule {
   buildPanel() {
     const { entry, panel } = this.ctx;
     const { species, trait } = this.inst;
+    const [A, a] = trait.alleles;
     this.stepper = h('ol', { class: 'stepper' });
     this.body = h('div', { class: 'step' });
     clear(panel).append(
       h(
         'div',
         {},
-        h('div', { class: 'eyebrow' }, `Module ${entry.n} · ${unitLabel(entry.unit)}`),
+        h('div', { class: 'eyebrow' }, moduleEyebrow(entry)),
         h('h1', {}, entry.title),
         h(
           'p',
           { class: 'meta' },
-          'Today: ',
+          'Today: diploid ',
           h('b', {}, species.plural),
-          ', trait ',
-          h('b', {}, trait.name.toLowerCase()),
-          ` (${DOMINANCE[trait.dominance]}). ${trait.alleles.map((a) => `${a.label}: ${a.note}`).join('; ')}.`,
+          ' and one autosomal pigment gene. ',
+          h('b', {}, A.label),
+          ` (dominant) ${A.note}; `,
+          h('b', {}, a.label),
+          ` (recessive) is ${a.note}, so ${a.label}/${a.label} bdellbees are white.`,
         ),
       ),
       entry.underConstruction
@@ -85,7 +85,7 @@ class SegregationModule {
               class: [i === this.index ? 'current' : '', this.done.has(s.id) ? 'done' : ''].join(' ').trim(),
               onclick: () => this.go(i),
             },
-            `${i + 1}. ${s.title}`,
+            s.intro ? s.title : `${stepLetter(i - 1)}. ${s.title}`,
           ),
         ),
       ),

@@ -24,6 +24,8 @@ export const PALETTE = {
     sand: 0xd8bf94,
     blue: 0x7f9dc0,
     rust: 0xc9825e,
+    // A bdellbee with no pigment (homozygous recessive for a pigment gene).
+    white: 0xfbf9f4,
   },
 };
 

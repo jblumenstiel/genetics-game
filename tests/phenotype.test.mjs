@@ -53,7 +53,7 @@ test('incomplete dominance cross gives 1:2:1', () => {
 });
 
 test('genotype labels are ordered dominant first', () => {
-  assert.equal(genotypeLabel(TRAITS.spots, ['s', 'S']), 'Ss');
+  assert.equal(genotypeLabel(TRAITS.spots, ['s', 'S']), 'S/s');
   assert.equal(genotypeLabel(TRAITS.color, ['CR', 'CB']), 'Cᴮ/Cᴿ');
 });
 

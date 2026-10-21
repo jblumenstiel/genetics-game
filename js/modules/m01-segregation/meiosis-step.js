@@ -1,4 +1,4 @@
-// Step 1: walk a cell through meiosis (or mitosis) stage by stage, with checkpoint questions.
+// Step A: walk a cell through meiosis (or mitosis) stage by stage, with checkpoint questions.
 
 import { h, clear, question } from '../../core/dom.js';
 import { ChromatidView, CellLayer, SpindleLayer } from '../../render/chromosome.js';
@@ -54,11 +54,11 @@ const MEIOSIS = [
     id: 'P1',
     name: 'Prophase I',
     title: 'Homologs pair up',
-    text: 'Homologous chromosomes find each other and pair along their length. This paired unit is a bivalent. Crossing over happens now, between non-sister chromatids.',
+    text: 'Homologous chromosomes find each other and pair along their length. This paired unit is a bivalent.',
     q: countQuestion(
-      'Crossing over happens at this stage. How many chromatids does each chromosome have at this moment?',
+      'The homologs are now paired. How many chromatids does each chromosome have at this moment?',
       2,
-      'Two per chromosome, so the bivalent holds four. Crossovers form between non-sister chromatids.',
+      'Two per chromosome, so the bivalent holds four.',
       { 1: 'Replication already happened in S phase, so each chromosome has two sisters.', 4: 'The bivalent has four, but that is two chromosomes. Each chromosome still has two.' },
     ),
   },
@@ -68,6 +68,8 @@ const MEIOSIS = [
     title: 'Pairs line up on the plate',
     text: 'Spindle fibers attach each homolog to one pole. Which homolog faces which pole is random: a coin flip at every meiosis.',
     interactive: 'Tap the paired chromosomes to flip which homolog faces which pole.',
+    // Asked once the student has flipped the pair at least once.
+    flipQ: 'orientation',
   },
   {
     id: 'A1',
@@ -481,21 +483,35 @@ export class MeiosisStep {
     const [a, b] = this.inst.meiosisParent.alleles;
     const het = a !== b;
     const al = (x) => alleleLabel(this.inst.trait, x);
-    const more = 'With many chromosomes and crossing over, the four products of a meiosis are usually all different, which is why diploid meiosis gives four non-identical haploid cells.';
     return {
       prompt: 'How do the four products compare at this gene?',
       options: [
         {
           label: `All four carry the same allele`,
           correct: !het,
-          feedback: het ? `Look at the labels: the two homologs carried ${al(a)} and ${al(b)}, and they went to different cells at Meiosis I.` : `Right. Both homologs carried ${al(a)}, so every product gets it. ${more}`,
+          feedback: het ? `Look at the labels: the two homologs carried ${al(a)} and ${al(b)}, and they went to different cells at Meiosis I.` : `Right. Both homologs carried ${al(a)}, so every product gets it.`,
         },
         {
           label: `Two carry one allele and two carry the other`,
           correct: het,
-          feedback: het ? `Right: two ${al(a)} and two ${al(b)}. The alleles segregated at Meiosis I. ${more}` : `This parent is homozygous: both homologs carry ${al(a)}.`,
+          feedback: het ? `Right: two ${al(a)} and two ${al(b)}. The alleles segregated at Meiosis I.` : `This parent is homozygous: both homologs carry ${al(a)}.`,
         },
         { label: 'They are two identical diploid cells', feedback: 'That is mitosis. Meiosis has two divisions and ends with four haploid cells.' },
+      ],
+    };
+  }
+
+  // Metaphase I: the orientation of the pair is the coin flip behind every probability that follows.
+  orientationQuestion() {
+    const [a, b] = this.inst.meiosisParent.alleles;
+    const al = (x) => alleleLabel(this.inst.trait, x);
+    return {
+      prompt: `In any one meiosis, what is the probability that the homolog carrying ${al(a)} faces the left pole?`,
+      options: [
+        { label: '0', feedback: 'It can face either pole; you just flipped it.' },
+        { label: '¼', feedback: `There are only two ways the pair can orient: ${al(a)} on the left, or ${al(b)} on the left.` },
+        { label: '½', correct: true, feedback: `Right. The two orientations are equally likely, so it is a coin flip: ½ for ${al(a)} on the left, ½ for ${al(b)} on the left.` },
+        { label: '1', feedback: 'Only if the spindle always grabbed the same homolog, and it does not. Flip the pair again.' },
       ],
     };
   }
@@ -504,6 +520,7 @@ export class MeiosisStep {
     const s = this.stage;
     if (s.q && !this.answered.has(this.key(s))) return false;
     if (s.interactive && this.flips === 0) return false;
+    if (s.flipQ && !this.answered.has(`${this.key(s)}:flip`)) return false;
     return true;
   }
 
@@ -513,17 +530,17 @@ export class MeiosisStep {
     const last = this.index === n - 1;
     const body = clear(this.body);
 
+    const { name, label: geno } = this.inst.meiosisParent;
+    if (this.mode === 'mitosis') {
+      body.append(
+        h('div', { class: 'callout' }, h('b', {}, 'Comparing with mitosis'), `The same cell from ${name}, dividing by mitosis instead.`),
+        h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => this.setMode('meiosis') }, '◀ Back to meiosis')),
+      );
+    } else if (this.index === 0) {
+      body.append(h('p', {}, `A quick review: follow ${name}’s gene (${geno}) through one meiosis, and watch where the two alleles go.`));
+    }
     body.append(
-      h(
-        'div',
-        { class: 'row' },
-        h(
-          'div',
-          { class: 'segmented', role: 'group', 'aria-label': 'Division type' },
-          ['meiosis', 'mitosis'].map((m) => h('button', { class: this.mode === m ? 'on' : '', onclick: () => this.setMode(m) }, m === 'meiosis' ? 'Meiosis' : 'Mitosis')),
-        ),
-      ),
-      h('div', { class: 'stage-name' }, `Stage ${this.index + 1} of ${n} · ${s.name}`),
+      h('div', { class: 'stage-name' }, `${this.mode === 'meiosis' ? 'Meiosis' : 'Mitosis'} · stage ${this.index + 1} of ${n} · ${s.name}`),
       h('h2', {}, s.title),
       h('p', {}, s.text),
     );
@@ -539,6 +556,21 @@ export class MeiosisStep {
             : s.interactive,
         ),
       );
+      const k = `${this.key(s)}:flip`;
+      if (this.flips && s.flipQ) {
+        const q = this.orientationQuestion();
+        if (this.answered.has(k)) body.append(h('p', { class: 'hint' }, `✓ ${q.prompt} ½`));
+        else
+          body.append(
+            question({
+              ...q,
+              onCorrect: () => {
+                this.answered.add(k);
+                setTimeout(() => this.renderPanel(), 900);
+              },
+            }),
+          );
+      }
     }
 
     const q = s.q === 'products' ? this.productsQuestion() : s.q;
@@ -568,18 +600,18 @@ export class MeiosisStep {
     );
     body.append(nav);
 
-    if (last && this.answered.has(this.key(s))) {
-      if (this.mode === 'meiosis') {
-        body.append(
-          h(
-            'div',
-            { class: 'callout' },
-            h('b', {}, 'Compare with mitosis'),
-            'Switch to Mitosis above to see a division that keeps both homologs together.',
-          ),
-        );
-      }
-      if (this.mod.done.has('meiosis')) body.append(h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: gametes ▶'));
+    if (last && this.answered.has(this.key(s)) && this.mode === 'meiosis') {
+      const [a, b] = this.inst.meiosisParent.alleles;
+      const al = (x) => alleleLabel(this.inst.trait, x);
+      body.append(
+        h(
+          'div',
+          { class: 'callout' },
+          h('b', {}, 'Segregation is a coin flip'),
+          `The two alleles separated at Meiosis I, so each product carries one allele, ${al(a)} or ${al(b)}. Which product gets which depended on the coin flip at Metaphase I. Pick any one product at random, and it carries ${al(a)} with probability ½ and ${al(b)} with probability ½. Every gamete in the rest of this module starts from that ½.`,
+        ),
+        h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: B. Gametes ▶'), h('button', { class: 'btn', onclick: () => this.setMode('mitosis') }, 'Compare with mitosis')),
+      );
     }
   }
 }

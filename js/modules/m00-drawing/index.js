@@ -6,7 +6,7 @@
 // questions b to h follow, unless they pick a different genotype to follow.
 
 import { h, clear } from '../../core/dom.js';
-import { unitLabel } from '../registry.js';
+import { moduleEyebrow } from '../registry.js';
 import { makeRng, pick, int, shuffle } from '../../core/rng.js';
 import { PALETTE } from '../../core/palette.js';
 import { haplotype, diploid, chromosome, makeCell, allelesAt } from '../../engine/genome.js';
@@ -262,7 +262,7 @@ class DrawingModule {
       h(
         'div',
         {},
-        h('div', { class: 'eyebrow' }, `Module ${entry.n} · ${unitLabel(entry.unit)}`),
+        h('div', { class: 'eyebrow' }, moduleEyebrow(entry)),
         h('h1', {}, entry.title),
         h(
           'p',
@@ -291,7 +291,7 @@ class DrawingModule {
           h(
             'button',
             { class: [i === this.index ? 'current' : '', this.done.has(s.id) ? 'done' : ''].join(' ').trim(), onclick: () => this.go(i) },
-            s.intro ? s.title : `${s.id}. ${s.title}`,
+            s.intro ? s.title : `${s.id.toUpperCase()}. ${s.title}`,
           ),
         ),
       ),
@@ -570,7 +570,7 @@ class DrawingModule {
         {},
         'In this module, you will walk through a life cycle from a genetic and chromosomal perspective. In the first part, you will start with gamete (Egg and Sperm genotypes). Then, you will show how these produce a zygote after fertilization. This will be followed by some mitosis as the zygote develops. Finally, you will walk through the steps of meiosis, which produces the gametes you would have started with.',
       ),
-      h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => this.go(1) }, 'Start: question a ▶')),
+      h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => this.go(1) }, 'Start: Question A ▶')),
     );
   }
 
@@ -603,9 +603,9 @@ class DrawingModule {
       { angle: (5 * Math.PI) / 6, label: 'Diploid cells', sub: 'body and germline (2n)', draw: (g, x, y, r) => this.drawCellIcon(g, x, y, r, 3) },
     ];
     const arrows = [
-      { from: 0, to: 1, label: 'Fertilization', sub: 'questions a–b' },
-      { from: 1, to: 2, label: 'Mitosis', sub: 'questions c–d' },
-      { from: 2, to: 0, label: 'Meiosis', sub: 'questions e–h' },
+      { from: 0, to: 1, label: 'Fertilization', sub: 'Questions A–B' },
+      { from: 1, to: 2, label: 'Mitosis', sub: 'Questions C–D' },
+      { from: 2, to: 0, label: 'Meiosis', sub: 'Questions E–H' },
     ];
 
     const g = new PIXI.Graphics();
@@ -896,10 +896,10 @@ class DrawingModule {
     const f = this.follow;
     const { mother, father } = this.parents;
     const from = {
-      gametes: `from the egg (${f.egg}) and sperm (${f.sperm}) you built in question a`,
-      'chosen-a': 'which you chose in question a',
+      gametes: `from the egg (${f.egg}) and sperm (${f.sperm}) you built in Question A`,
+      'chosen-a': 'which you chose in Question A',
       chosen: 'which you chose',
-      default: `one possible offspring of the ${g(mother)} mother and ${g(father)} father; choose your own in question a`,
+      default: `one possible offspring of the ${g(mother)} mother and ${g(father)} father; choose your own in Question A`,
     }[f.source];
     const box = h('div', { class: 'callout' }, h('b', {}, `This individual: ${g(f.alleles)}`), `The zygote’s genotype, ${from}.`);
     if (!this.picking) {
@@ -933,7 +933,7 @@ class DrawingModule {
     const s = this.step;
     const body = clear(this.body);
     if (s.intro) return this.renderIntro(body);
-    body.append(h('div', { class: 'stage-name' }, `Question ${s.id}`), h('h2', {}, s.title), h('p', {}, s.prompt()));
+    body.append(h('div', { class: 'stage-name' }, `Question ${s.id.toUpperCase()}`), h('h2', {}, s.title), h('p', {}, s.prompt()));
     if (s.id === 'a') this.renderZygote(body);
     else this.renderFollow(body);
     if (!this.nucleiShown(s)) body.append(h('div', { class: 'callout' }, h('b', {}, 'First, answer the question above the cell'), s.nucleiQuestion.text));
@@ -948,7 +948,7 @@ class DrawingModule {
         'div',
         { class: 'row' },
         h('button', { class: 'btn primary', onclick: () => this.check() }, 'Check'),
-        this.prevAnswer() ? h('button', { class: 'btn', onclick: () => this.copyPrevious() }, `Start from my answer to ${this.prevAnswer().id}`) : null,
+        this.prevAnswer() ? h('button', { class: 'btn', onclick: () => this.copyPrevious() }, `Start from my answer to ${this.prevAnswer().id.toUpperCase()}`) : null,
         h('button', { class: 'btn small', onclick: () => this.startOver() }, 'Start over'),
       ),
       this.feedbackEl,
@@ -1173,7 +1173,7 @@ class DrawingModule {
   praise(s) {
     const [x, y] = this.follow.alleles;
     return {
-      a: `Right. Each gamete is haploid: one chromosome, one chromatid. An egg carrying ${this.follow.egg} and a sperm carrying ${this.follow.sperm} make the ${g(this.follow.alleles)} zygote that questions b to h follow.`,
+      a: `Right. Each gamete is haploid: one chromosome, one chromatid. An egg carrying ${this.follow.egg} and a sperm carrying ${this.follow.sperm} make the ${g(this.follow.alleles)} zygote that Questions B to H follow.`,
       b: 'Right. Fertilization restores two homologs, one from each parent, each still a single chromatid.',
       c: 'Right. Each homolog replicated into two identical sisters, and in mitosis they line up single file on the plate without pairing. Watch anaphase: the sisters separate to opposite poles.',
       d: 'Right. Sisters separated, so each daughter is an exact copy of the zygote.',

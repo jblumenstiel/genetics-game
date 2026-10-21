@@ -37,6 +37,8 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
 - New modules go in `js/modules/m<nn>-<name>/` and are registered in `js/modules/registry.js`. Set
   `underConstruction: true` on modules that are not finished; they get a note in the panel and a tag on the hub.
 - Module 0 sits in its own unit, "Meiosis" (`bare: true`, shown by title alone). Other units are "Unit A", "Unit B", ...
+- Units are lettered, modules numbered, and the panels within a module lettered: "A. Meiosis", "B. Gametes".
+  Panel headings put the unit first ("Unit A · Module 1"); use `moduleEyebrow` and `stepLetter` in `registry.js`.
 - Match the surrounding code: comment why, not what, and keep functions small.
 
 ## Teaching and feedback rules
@@ -62,6 +64,9 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
   how many nuclei?" (1 or 2), "After Meiosis II, how many gametes?" (1, 2 or 4).
 - Label division stages by name: "Mitosis: Metaphase", "Meiosis: Metaphase I", "Meiosis: Metaphase II". Use
   Roman numerals for Meiosis I and II.
+- **Punnett squares:** sperm across the top row, eggs down the left column, with the father shown above and the
+  mother to the left. Each cell shows its bdellbee, its genotype and its probability, as P(A/a) = ½ × ½ = ¼.
+  Present the square as a summary of independent fertilization events, not as a mechanism.
 - "Show me" appears after two wrong checks. An answer the student was shown does not count as completed.
 
 ## Interaction and visual style
@@ -84,6 +89,13 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
 
 - Module 0 (Build the cell) is in use. Module 1 (One gene, one meiosis) is under construction.
 - Crossing over is removed from Module 0's Metaphase I for now. The engine and builder still support it; to bring it
-  back, set `crossovers: true` and `minCross` on question e.
+  back, set `crossovers: true` and `minCross` on Question E.
+- Module 1 decisions:
+  - It opens with an intro page of objectives and builds from meiosis to the Punnett square.
+  - It uses one pigment gene with complete dominance only (incomplete and codominance wait for Module 3), and makes
+    no mention of crossing over.
+  - Its heterozygous bdellbee from A and B becomes the mother in C, and C and D cross two heterozygotes.
+  - B. Gametes makes single random gametes first, then batches of 10, 20 or 30 up to 120.
+  - Deferred: a "1 gamete from each of many meioses" comparison in B.
 - The roadmap's "Build the cell" thread adds the same eight questions to Modules 2, 5, 9 and 11 with more loci.
 - Exam I covers binomial probability and chi-square early; the statistics modules may move earlier in the roadmap.

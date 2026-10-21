@@ -115,3 +115,13 @@ export function findModule(id) {
 export function unitLabel(unit) {
   return unit.bare ? unit.title : `Unit ${unit.id}`;
 }
+
+// Panel eyebrow, unit first: "Unit A · Module 1".
+export function moduleEyebrow(entry) {
+  return `${unitLabel(entry.unit)} · Module ${entry.n}`;
+}
+
+// Units are lettered, modules numbered, and each panel within a module lettered: A, B, C, ...
+export function stepLetter(i) {
+  return String.fromCharCode(65 + i);
+}
