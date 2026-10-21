@@ -608,13 +608,13 @@ export class FertilizationStep {
         ],
       }) &&
       this.ask(body, 'fert:product', {
-        prompt: `So what is the probability that an egg carrying ${this.al(a)} meets a sperm carrying ${this.al(a)}, making a white ${aa} bdellbee?`,
+        prompt: `What is the probability that an egg carries ‘${this.al(a)}’ and is fertilized by a sperm carrying ‘${this.al(a)}’?`,
         options: ['½', '¼', '¾', '1'].map((o) => ({
           label: o,
           correct: o === '¼',
           feedback:
             o === '¼'
-              ? `Right. Both events must happen, and they are independent, so multiply: ½ × ½ = ¼. This is the product rule.`
+              ? `Right. Both events must happen, and they are independent, so multiply: ½ × ½ = ¼. This is the product rule. The zygote is ${aa}, a white bdellbee.`
               : o === '½'
                 ? `½ is the chance for one gamete. Both the egg and the sperm have to carry ${this.al(a)}.`
                 : `Each gamete carries ${this.al(a)} with probability ½, and both must. Multiply the two independent probabilities.`,
