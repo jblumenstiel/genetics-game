@@ -278,7 +278,7 @@ class DrawingModule {
       ),
       this.stepper,
       this.body,
-      h('div', { class: 'panel-foot' }, h('span', {}, `Seed ${this.ctx.seed}`), (this.footBtn = h('button', { class: 'btn small' }, 'New problem'))),
+      h('div', { class: 'panel-foot' }, h('span', {}, `Seed ${this.ctx.seed}`)),
     );
   }
 
@@ -307,12 +307,10 @@ class DrawingModule {
     this.builder.maxNuclei = s.maxNuclei ?? 4;
     this.builder.crossovers = !!s.crossovers;
     this.builder.metaphase = !!s.metaphase;
+    this.builder.onDemo = s.id === 'a' ? () => this.playDemo() : null;
     this.builder.root.visible = !s.list && !s.intro && this.nucleiShown(s);
     this.introLayer.visible = !!s.intro;
     this.stopBirth();
-    const last = i === this.steps.length - 1;
-    this.footBtn.textContent = last ? 'Return to main page' : 'New problem';
-    this.footBtn.onclick = last ? () => this.goHome() : () => this.ctx.newSeed();
     if (!s.list && !s.intro) this.builder.setNuclei(this.answers[s.id] ?? s.start);
     this.applyLock();
     this.renderStepper();
@@ -322,7 +320,7 @@ class DrawingModule {
     if (s.id === 'a' && !this.demoSeen()) setTimeout(() => this.playDemo(), 500);
   }
 
-  // The how-to animation plays once per browser; the panel has a button to replay it.
+  // The how-to animation plays once per browser; a button on the canvas in Question A replays it.
   demoSeen() {
     try {
       return localStorage.getItem('gorby.buildDemoSeen') === '1';
@@ -432,7 +430,7 @@ class DrawingModule {
       b.h = bh;
       return b;
     };
-    const again = make('Pick another random set of egg and sperm genotypes and make another bdellbee!', true, () => this.anotherBirth());
+    const again = make('Click here to pick another random set of egg and sperm genotypes and make another bdellbee', true, () => this.anotherBirth());
     const home = make('Return to main page', false, () => this.goHome());
     again.position.set(w / 2, y + again.h / 2);
     home.position.set(w / 2, y + again.h + 12 + home.h / 2);
@@ -933,7 +931,7 @@ class DrawingModule {
     const s = this.step;
     const body = clear(this.body);
     if (s.intro) return this.renderIntro(body);
-    body.append(h('div', { class: 'stage-name' }, `Question ${s.id.toUpperCase()}`), h('h2', {}, s.title), h('p', {}, s.prompt()));
+    body.append(h('h2', {}, `${s.id.toUpperCase()}. ${s.title}`), h('p', {}, s.prompt()));
     if (s.id === 'a') this.renderZygote(body);
     else this.renderFollow(body);
     if (!this.nucleiShown(s)) body.append(h('div', { class: 'callout' }, h('b', {}, 'First, answer the question above the cell'), s.nucleiQuestion.text));
@@ -948,30 +946,11 @@ class DrawingModule {
         'div',
         { class: 'row' },
         h('button', { class: 'btn primary', onclick: () => this.check() }, 'Check'),
-        this.prevAnswer() ? h('button', { class: 'btn', onclick: () => this.copyPrevious() }, `Start from my answer to ${this.prevAnswer().id.toUpperCase()}`) : null,
-        h('button', { class: 'btn small', onclick: () => this.startOver() }, 'Start over'),
       ),
       this.feedbackEl,
     );
     this.renderTools();
     this.renderFeedback();
-  }
-
-  prevAnswer() {
-    for (let i = this.index - 1; i >= 0; i--) {
-      const s = this.steps[i];
-      if (!s.list && this.answers[s.id]) return s;
-    }
-    return null;
-  }
-
-  copyPrevious() {
-    const prev = this.prevAnswer();
-    const s = this.step;
-    const nuclei = this.answers[prev.id].map((n) => ({ ...n, label: '' }));
-    const fitted = s.fixed ? s.start.map((st, i) => ({ label: st.label, items: nuclei[i]?.items ?? [] })) : nuclei.slice(0, s.maxNuclei ?? 4);
-    this.builder.setNuclei(fitted);
-    this.answers[s.id] = this.builder.getNuclei();
   }
 
   // Metaphase questions: what the two arrangements mean. The choice itself is made on the canvas, in the bar above
@@ -1009,15 +988,7 @@ class DrawingModule {
     ].filter(Boolean);
     clear(this.tools).append(
       h('ul', { class: 'tips' }, tips.map((t) => h('li', {}, t))),
-      h('button', { class: 'btn small', onclick: () => this.playDemo() }, '▶ Watch how it works'),
     );
-  }
-
-  startOver() {
-    this.builder.setNuclei(this.step.start);
-    this.answers[this.step.id] = this.builder.getNuclei();
-    this.feedback = null;
-    this.renderFeedback();
   }
 
   // Question a: each gamete is graded against every gamete its parent could make, and together they must make the
@@ -1072,7 +1043,7 @@ class DrawingModule {
       problem = r.problems[0];
     }
     if (ok && this.revealed.has(s.id)) {
-      this.feedback = { kind: 'good', text: 'That matches the answer you were shown. Use “New problem” to try one on your own.' };
+      this.feedback = { kind: 'good', text: 'That matches the answer you were shown, so it does not count as completed. For a new problem, return to the main page and open the module again.' };
     } else if (ok) {
       this.done.add(s.id);
       this.feedback = { kind: 'good', text: this.praise(s) };
@@ -1199,7 +1170,7 @@ class DrawingModule {
           'div',
           { class: 'row', style: { marginTop: '8px' } },
           s.anaphase ? h('button', { class: 'btn small', onclick: () => this.playAnaphase() }, '▶ Watch anaphase again') : null,
-          this.index < this.steps.length - 1 ? h('button', { class: 'btn primary', onclick: () => this.go(this.index + 1) }, `Next: question ${this.steps[this.index + 1].id} ▶`) : null,
+          this.index < this.steps.length - 1 ? h('button', { class: 'btn primary', onclick: () => this.go(this.index + 1) }, `Next: Question ${this.steps[this.index + 1].id.toUpperCase()} ▶`) : null,
         ),
       );
     }
@@ -1215,7 +1186,7 @@ class DrawingModule {
     this.feedback = { kind: 'bad', text: 'Here is one correct answer. Study it, then try the next question.' };
     this.renderFeedback();
     if (this.index < this.steps.length - 1) {
-      this.feedbackEl.append(h('div', { class: 'row', style: { marginTop: '8px' } }, h('button', { class: 'btn', onclick: () => this.go(this.index + 1) }, `Next: question ${this.steps[this.index + 1].id} ▶`)));
+      this.feedbackEl.append(h('div', { class: 'row', style: { marginTop: '8px' } }, h('button', { class: 'btn', onclick: () => this.go(this.index + 1) }, `Next: Question ${this.steps[this.index + 1].id.toUpperCase()} ▶`)));
     }
   }
 

@@ -189,7 +189,7 @@ export class CellBuilder {
   nucleusRects() {
     const { x, w } = this.rect;
     const y = this.rect.y + this.barHeight();
-    const h = this.rect.h - this.barHeight() - this.trayHeight() - (this.readOnly ? 0 : 10);
+    const h = this.rect.h - this.barHeight() - this.trayHeight() - (this.readOnly ? 0 : 10) - (this.onDemo ? 40 : 0);
     const n = this.nuclei.length;
     const cols = n <= 2 ? Math.max(1, n) : 2;
     const rows = Math.max(1, Math.ceil(n / cols));
@@ -520,6 +520,23 @@ export class CellBuilder {
     tab.position.set(x + 21, y);
     this.root.addChild(tabBg, tab);
     this.trayPieces = [];
+
+    // Optional "Watch how it works" button, at the left just above the tab. The module supplies onDemo.
+    if (this.onDemo) {
+      const t = textLabel('▶ Watch how it works', 13, { fill: PALETTE.ink, fontWeight: '800' });
+      t.anchor.set(0, 0.5);
+      const bw = t.width + 24;
+      const by = y - 11 - 8 - 15;
+      const demo = new PIXI.Container();
+      demo.addChild(new PIXI.Graphics().roundRect(x + 12, by - 15, bw, 30, 15).fill(0xffffff).stroke({ width: 2, color: PALETTE.cellEdge }), t);
+      t.position.set(x + 24, by);
+      demo.eventMode = 'static';
+      demo.cursor = 'pointer';
+      demo.on('pointertap', () => {
+        if (!this.locked) this.onDemo();
+      });
+      this.root.addChild(demo);
+    }
 
     const def = this.karyotype[0];
     const iconL = th * 0.5;
