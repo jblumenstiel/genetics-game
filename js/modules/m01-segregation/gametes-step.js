@@ -38,6 +38,9 @@ export class GametesStep {
     this.gameteLayer = new PIXI.Container();
     this.dotLayer = new PIXI.Container();
     container.addChild(this.layer, this.gameteLayer, this.dotLayer);
+    // The fraction question sits on the main page as HTML, under the four products.
+    this.sheet = h('div', { class: 'stage-sheet at-bottom', hidden: true });
+    this.mod.ctx.stage.append(this.sheet);
     const { w, h: hgt } = this.mod.size();
     this.resize(w, hgt);
     this.renderPanel();
@@ -46,6 +49,7 @@ export class GametesStep {
   // Animations resolve when the module moves on; nothing may draw into the shared panel after that.
   exit() {
     this.exited = true;
+    this.sheet.remove();
   }
 
   resize(w, hgt) {
@@ -58,19 +62,34 @@ export class GametesStep {
     this.layer.addChild(card.container);
     this.cardPos = { x: card.container.x, y: card.container.y };
 
-    const heading = label('The four products of your meiosis', 15, { fill: PALETTE.inkSoft });
+    // The four products sit right of the card, in a row of 9.5 radii. When a row of full-size products does not fit
+    // there (a phone), they form a 2 × 2 grid instead, one row per Meiosis II cell.
+    const b = card.container.getLocalBounds();
+    const left = card.container.x + b.x + b.width + 12;
+    const right = w - 12;
+    const grid = (right - left) / 9.5 < 24;
+    const r = grid ? Math.max(20, Math.min(36, (right - left) / 4.6)) : Math.min(Math.max(24, Math.min(42, w * 0.045)), (right - left) / 9.5);
+    this.r = r;
+    const reach = grid ? 2.25 * r : 4.75 * r;
+    this.rowX = Math.max(left + reach, Math.min(w * 0.64, right - reach));
+
+    const heading = label('The four products of your meiosis', 15, { fill: PALETTE.inkSoft, wordWrap: grid, wordWrapWidth: right - left, align: 'center' });
     heading.anchor.set(0.5, 0);
-    heading.position.set(w * 0.64, hgt * 0.08);
+    const half = heading.width / 2 + 8;
+    heading.position.set(Math.max(half, Math.min(w - half, this.rowX)), hgt * 0.08);
     this.layer.addChild(heading);
 
-    const r = Math.max(24, Math.min(42, w * 0.045));
-    this.r = r;
+    const top = heading.y + heading.height + 10 + r;
+    const spots = grid
+      ? [0, 1, 2, 3].map((i) => ({ x: this.rowX + ((i % 2) - 0.5) * 2.5 * r, y: top + Math.floor(i / 2) * 2.5 * r }))
+      : [0, 1, 2, 3].map((i) => ({ x: this.rowX + (i - 1.5) * 2.5 * r, y: top }));
     this.mod.state.meiosisProducts.forEach((p, i) => {
       const g = gameteView(this.inst, p.chromosomes[0][0], r);
-      g.position.set(w * 0.64 + (i - 1.5) * r * 2.5, hgt * 0.08 + 30 + r * 1.3);
+      g.position.set(spots[i].x, spots[i].y);
       this.layer.addChild(g);
     });
-    this.pileTop = hgt * 0.08 + 30 + r * 2.6 + 30;
+    // In a grid the products may end above the card's labels; the pile starts below both.
+    this.pileTop = Math.max(spots[3].y + r * 1.3, grid ? card.container.y + b.y + b.height : 0) + 30;
 
     if (this.s.phase === 'single') this.layoutSingle(w, hgt);
     else this.layoutBins(w, hgt);
@@ -78,7 +97,7 @@ export class GametesStep {
 
   // Where a single random gamete lands, below the products row.
   layoutSingle(w, hgt) {
-    this.spot = { x: w * 0.64, y: this.pileTop + Math.max(60, (hgt - this.pileTop) * 0.4), r: this.r * 1.4 };
+    this.spot = { x: this.rowX, y: this.pileTop + Math.max(60, (hgt - this.pileTop) * 0.4), r: this.r * 1.4 };
     const t = label(`Random gamete from ${this.parent.name}`, 15, { fill: PALETTE.inkSoft });
     t.anchor.set(0.5, 1);
     t.position.set(this.spot.x, this.spot.y - this.spot.r - 10);
@@ -218,13 +237,19 @@ export class GametesStep {
     const [x, y] = this.parent.alleles;
     const p = (Number(x === this.target) + Number(y === this.target)) / 2;
     const tl = alleleLabel(this.trait, this.target);
+    const why = `${this.parent.label} has ${p === 0.5 ? 'one' : p === 1 ? 'two' : 'no'} ${tl} cop${p === 0.5 ? 'y' : 'ies'}, and each gamete gets one of the two copies at random.`;
     body.append(
       h('h2', {}, 'From one meiosis to many gametes'),
       h('p', {}, `${this.parent.name} is ${this.parent.label}. Every gamete gets exactly one of the two copies of this gene.`),
     );
 
-    if (!this.mod.state.answered.has('gametes:fraction')) {
+    const asking = !this.mod.state.answered.has('gametes:fraction');
+    this.sheet.hidden = !asking;
+    if (asking) {
       body.append(
+        h('div', { class: 'callout' }, h('b', {}, `Answer on the main page ${window.innerWidth > 860 ? '←' : '↑'}`), 'Predict before making any gametes.'),
+      );
+      clear(this.sheet).append(
         question({
           prompt: `What fraction of ${this.parent.name}’s gametes carry ${tl}?`,
           options: [0, 0.25, 0.5, 0.75, 1].map((v) => ({
@@ -232,7 +257,7 @@ export class GametesStep {
             correct: v === p,
             feedback:
               v === p
-                ? `Right. ${this.parent.label} has ${p === 0.5 ? 'one' : p === 1 ? 'two' : 'no'} ${tl} cop${p === 0.5 ? 'y' : 'ies'}, and each gamete gets one of the two copies at random.`
+                ? `Right. ${why}`
                 : v === 0.25 || v === 0.75
                   ? 'Each gamete gets one of the two copies, so the answer has to be 0, ½ or 1.'
                   : `Count the ${tl} copies in ${this.parent.label}.`,
@@ -246,7 +271,7 @@ export class GametesStep {
       return;
     }
 
-    body.append(h('p', { class: 'hint' }, `✓ Expected fraction carrying ${tl}: ${fractionGlyph(p)}`));
+    body.append(h('p', { class: 'hint' }, `✓ ${fractionGlyph(p)} of ${this.parent.name}’s gametes carry ${tl}. ${why}`));
     if (this.s.phase === 'single') this.renderSingle(body);
     else this.renderMany(body, p);
   }

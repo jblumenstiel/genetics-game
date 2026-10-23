@@ -147,6 +147,18 @@ select.gl-field {
 .gl-add { border: 2px dashed #c9b89b; background: transparent; color: var(--ink-soft); }
 .gl-add:hover:not(:disabled) { border-color: var(--sage); color: var(--sage-deep); }
 .stage-sheet .feedback { margin-top: 12px; }
+/* A multiple-choice question on the main page: its choices look like the build tray's pieces. */
+.stage-sheet .question { background: none; border: 0; padding: 0; }
+.stage-sheet .question .prompt { font-size: 16px; }
+.stage-sheet .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.stage-sheet .choice {
+  min-width: 64px; min-height: 44px; padding: 8px 14px;
+  background: #fff; border: 2px solid #c9b89b; border-radius: 12px;
+  font-size: 17px; font-weight: 800; color: var(--ink); text-align: center;
+}
+.stage-sheet .choice:hover:not(:disabled) { border-color: var(--sage); }
+.stage-sheet .choice.right { background: var(--sage-wash); border-color: var(--sage); }
+.stage-sheet .choice.wrong { background: var(--clay-wash); border-color: var(--clay); color: var(--ink-soft); }
 /* Module 1's detective: the parents' genotype choices sit at the bottom of the main page, under the litter. */
 .stage-sheet.at-bottom { top: auto; bottom: 12px; }
 .stage-sheet.at-bottom .gl-actions { align-items: center; margin-top: 12px; }
@@ -162,6 +174,7 @@ select.gl-field {
 /* On a phone the sheet keeps to the lower part of the stage and scrolls, so the litter stays in view. */
 @media (max-width: 480px) {
   .stage-sheet.at-bottom { padding: 12px 14px; max-height: 55%; }
+  .stage-sheet .choice { min-width: 52px; padding: 8px 10px; }
 }
 .panel {
   border-left: 1px solid var(--line);
