@@ -68,6 +68,10 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
   mother to the left. Each cell shows its bdellbee, its genotype and its probability, as P(A/a) = ½ × ½ = ¼.
   Present the square as a summary of independent fertilization events, not as a mechanism.
 - "Show me" appears after two wrong checks. An answer the student was shown does not count as completed.
+- **Detective-style puzzles grade on possibility, not likelihood.** An impossible hypothesis gets "This is not a
+  possible set of parent genotypes under standard conditions." and why. Any possible one is "a reasonable
+  hypothesis"; then say if it is the only possible one (and why), or name the parents actually used ("However, in
+  this particular scenario, the parents were X."). Never "explains the litter as well as any hypothesis".
 
 ## Interaction and visual style
 
