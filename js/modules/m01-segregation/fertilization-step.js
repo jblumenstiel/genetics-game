@@ -9,13 +9,11 @@ import { PALETTE } from '../../core/palette.js';
 import { meiosis, fertilize } from '../../engine/meiosis.js';
 import { allelesAt } from '../../engine/genome.js';
 import { alleleLabel, genotypeLabel } from '../../engine/phenotype.js';
-import { offspringGenotypes, offspringPhenotypes } from '../../engine/cross.js';
+import { offspringGenotypes, offspringPhenotypes, fractionGlyph } from '../../engine/cross.js';
 import { Creature } from '../../render/creature.js';
 import { label } from '../../render/chromosome.js';
 import { creatureCard } from './instance.js';
 
-const FRAC = { 0: '0', 0.25: '¼', 0.5: '½', 0.75: '¾', 1: '1' };
-const fr = (p) => FRAC[p] ?? String(p);
 
 // The first few fertilizations come before the probability questions.
 const WARMUP = 3;
@@ -753,9 +751,9 @@ export class FertilizationStep {
           dist.map((d) => {
             const g = this.gl(d.alleles);
             const ways = Math.round(d.p * 4);
-            return h('li', {}, `P(${g}) = ${ways > 1 ? Array(ways).fill('¼').join(' + ') + ' = ' : ''}${fr(d.p)}. You saw ${obs(g)} of ${total}.`);
+            return h('li', {}, `P(${g}) = ${ways > 1 ? Array(ways).fill('¼').join(' + ') + ' = ' : ''}${fractionGlyph(d.p)}. You saw ${obs(g)} of ${total}.`);
           }),
-          h('li', {}, `Phenotypes: ${pheno.map((p) => `${fr(p.p)} ${p.label}`).join(', ')}, a ${pheno.map((p) => Math.round(p.p * 4)).join(' : ')} ratio.`),
+          h('li', {}, `Phenotypes: ${pheno.map((p) => `${fractionGlyph(p.p)} ${p.label}`).join(', ')}, a ${pheno.map((p) => Math.round(p.p * 4)).join(' : ')} ratio.`),
         ),
         'Multiply for independent events that must both happen (this egg and this sperm). Add for different ways of getting the same result (two cells with the same genotype).',
       ),

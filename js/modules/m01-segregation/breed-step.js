@@ -2,8 +2,8 @@
 
 import { h, clear, question } from '../../core/dom.js';
 import { PALETTE } from '../../core/palette.js';
-import { offspringPhenotypes, offspringGenotypes, allGenotypes, integerRatio, fraction } from '../../engine/cross.js';
-import { genotypeLabel } from '../../engine/phenotype.js';
+import { offspringPhenotypes, offspringGenotypes, allGenotypes, integerRatio, fractionGlyph } from '../../engine/cross.js';
+import { genotypeLabel, alleleLabel } from '../../engine/phenotype.js';
 import { Creature } from '../../render/creature.js';
 import { label } from '../../render/chromosome.js';
 import { creatureCard, breed, phenotypeClasses } from './instance.js';
@@ -109,39 +109,77 @@ export class BreedStep {
     return Object.values(this.counts).reduce((s, n) => s + n, 0);
   }
 
+  gl(alleles) {
+    return genotypeLabel(this.trait, alleles);
+  }
+
+  // "Bramble (D/d) makes D and d gametes, ½ each", or "only D gametes" for a homozygote.
+  gametesOf(p) {
+    const kinds = [...new Set(p.alleles)].map((a) => alleleLabel(this.trait, a));
+    const made = kinds.length === 1 ? `only ${kinds[0]} gametes` : `${kinds.join(' and ')} gametes, ${fractionGlyph(0.5)} each`;
+    return `${p.name} (${p.label}) makes ${made}`;
+  }
+
+  // Every phenotype ratio some cross of this gene can give, each wrong one answered with the crosses that give it.
   ratioOptions() {
     const genos = allGenotypes(this.trait);
-    const seen = new Map();
-    for (const g1 of genos) for (const g2 of genos) {
-      const text = ratioText(offspringPhenotypes(this.trait, g1, g2));
-      seen.set(text, true);
-    }
+    const crosses = new Map();
+    genos.forEach((g1, i) =>
+      genos.slice(i).forEach((g2) => {
+        const text = ratioText(offspringPhenotypes(this.trait, g1, g2));
+        crosses.set(text, [...(crosses.get(text) ?? []), `${this.gl(g1)} × ${this.gl(g2)}`]);
+      }),
+    );
+    const [p1, p2] = this.parents;
     const right = ratioText(this.dist);
-    return [...seen.keys()].sort().map((text) => ({
+    const genotypes = offspringGenotypes(this.trait, p1.alleles, p2.alleles)
+      .map((g) => `${this.gl(g.alleles)} ${fractionGlyph(g.p)}`)
+      .join(', ');
+    const list = (xs) => (xs.length === 1 ? xs[0] : `${xs.slice(0, -1).join(', ')} or ${xs.at(-1)}`);
+    return [...crosses.keys()].sort().map((text) => ({
       label: text,
       correct: text === right,
       feedback:
         text === right
-          ? `Right. Build it from the gametes: each parent’s two alleles each go to half its gametes, and every combination is equally likely.`
-          : `Not for this cross. Write out each parent’s gametes (½ each) and combine them.`,
+          ? `Right. ${this.gametesOf(p1)}; ${this.gametesOf(p2)}. Combining them gives ${genotypes}, so ${right.replace(/^All /, 'all ')}.`
+          : `“${text}” is the ratio from ${list(crosses.get(text))}. This cross is ${p1.label} × ${p2.label}: ${this.gametesOf(p1)}, and ${this.gametesOf(p2)}. Combine them.`,
     }));
   }
 
+  // What fraction of offspring have one genotype, with feedback that names the genotype a wrong answer belongs to.
   genotypeQuestion() {
     const [p1, p2] = this.parents;
     const genos = offspringGenotypes(this.trait, p1.alleles, p2.alleles);
     const target = genos.find((g) => g.alleles[0] === g.alleles[1]) ?? genos[0];
-    const tl = genotypeLabel(this.trait, target.alleles);
+    const tl = this.gl(target.alleles);
+    const [x, y] = target.alleles.map((a) => alleleLabel(this.trait, a));
+    const give = (p, a) => fractionGlyph(p.alleles.filter((b) => b === a).length / 2);
+    const [g1, g2] = [give(p1, target.alleles[0]), give(p2, target.alleles[0])];
+    const needs =
+      x === y
+        ? `To be ${tl}, an offspring needs ${x} from ${p1.name} (${p1.label}: probability ${g1}) and ${x} from ${p2.name} (${p2.label}: probability ${g2}). Multiply them.`
+        : `To be ${tl}, an offspring needs ${x} from one parent and ${y} from the other. Work out both ways and add them.`;
+    const right =
+      x === y
+        ? `Right: ${x} from ${p1.name} (${g1}) and ${x} from ${p2.name} (${g2}), so ${g1} × ${g2} = ${fractionGlyph(target.p)}.`
+        : `Right: ${fractionGlyph(target.p)}, adding the two ways to get ${x} from one parent and ${y} from the other.`;
+    const others = genos.filter((o) => o.key !== target.key).map((o) => this.gl(o.alleles));
+    // A wrong fraction may be the probability of another genotype or of a phenotype; say which.
+    const meaning = (v) => {
+      if (v === 0) return `0 would mean no ${tl} offspring at all, but ${x === y ? `each parent can pass on ${x}` : `one parent can pass on ${x} and the other ${y}`}. `;
+      if (v === 1 && others.length) return `1 would mean every offspring is ${tl}, but ${others.join(' and ')} offspring appear too. `;
+      const g = genos.find((o) => o.key !== target.key && Math.abs(o.p - v) < 1e-9);
+      if (g) return `${fractionGlyph(v)} is the probability of ${this.gl(g.alleles)}, not ${tl}. `;
+      const ph = this.dist.find((d) => Math.abs(d.p - v) < 1e-9 && d.genotypes.length > 1);
+      if (ph) return `${fractionGlyph(v)} is the probability of being ${ph.label} (${ph.genotypes.map((o) => this.gl(o.alleles)).join(' or ')}), and ${tl} is only one of those. `;
+      return '';
+    };
     return {
       prompt: `What proportion of the offspring of ${p1.label} × ${p2.label} do you expect to be ${tl}?`,
-      options: [0, 0.25, 0.5, 0.75, 1].map((v) => ({
-        label: fraction(v),
-        correct: Math.abs(v - target.p) < 1e-9,
-        feedback:
-          Math.abs(v - target.p) < 1e-9
-            ? `Right: ${fraction(target.p)}. Multiply the chance of the right gamete from each parent.`
-            : `Find the probability that ${p1.name} gives the needed allele, times the probability that ${p2.name} does.`,
-      })),
+      options: [0, 0.25, 0.5, 0.75, 1].map((v) => {
+        const correct = Math.abs(v - target.p) < 1e-9;
+        return { label: fractionGlyph(v), correct, feedback: correct ? right : `${meaning(v)}${needs}` };
+      }),
     };
   }
 

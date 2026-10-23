@@ -4,13 +4,16 @@
 import { h, clear, question } from '../../core/dom.js';
 import { PALETTE } from '../../core/palette.js';
 import { makeRng } from '../../core/rng.js';
-import { allGenotypes, offspringPhenotypes, offspringGenotypes, logLikelihood, genotypeGivenPhenotype, fraction } from '../../engine/cross.js';
+import { allGenotypes, offspringPhenotypes, offspringGenotypes, logLikelihood, genotypeGivenPhenotype, fractionGlyph } from '../../engine/cross.js';
 import { genotypeLabel, genotypeKey } from '../../engine/phenotype.js';
 import { Creature } from '../../render/creature.js';
 import { genotypeOptions, IMPOSSIBLE_NOTE } from '../../engine/genotypes.js';
 import { creatureCard, breed, makeParent, LETTERS } from './instance.js';
 import { ratioText } from './breed-step.js';
 import { pick, shuffle, int } from '../../core/rng.js';
+
+// ratioText starts "All pigmented" when there is one class; inside a sentence it reads "all pigmented".
+const midSentence = (ratio) => ratio.replace(/^All /, 'all ');
 
 export class DetectiveStep {
   constructor(mod) {
@@ -33,6 +36,9 @@ export class DetectiveStep {
     this.choice = [null, null];
     this.solved = false;
     this.message = null;
+    // Wrong checks so far; "Show me" appears after two. A shown answer does not count as completed.
+    this.attempts = 0;
+    this.revealed = false;
   }
 
   title() {
@@ -136,7 +142,7 @@ export class DetectiveStep {
     ]) {
       if (t.express(g).key !== p.phenotype.key) {
         this.message = { kind: 'bad', text: `Genotype ${gl(g)} gives the ${t.express(g).label} phenotype, but ${p.name} shows ${p.phenotype.label}.` };
-        return this.render();
+        return this.miss();
       }
     }
     const dist = offspringPhenotypes(t, a, b);
@@ -145,16 +151,16 @@ export class DetectiveStep {
       const impossible = Object.keys(this.counts).find((k) => !dist.some((d) => d.key === k && d.p > 0));
       const name = this.litter.find((k) => k.phenotype.key === impossible).phenotype.label;
       this.message = { kind: 'bad', text: `${gl(a)} × ${gl(b)} can never produce the ${name} phenotype, but ${this.counts[impossible]} of the litter show it.` };
-      return this.render();
+      return this.miss();
     }
     const { top } = this.analysis();
     const isTop = top.some((s) => genotypeKey(t, s.a) === genotypeKey(t, a) && genotypeKey(t, s.b) === genotypeKey(t, b));
     if (!isTop) {
       this.message = {
         kind: 'bad',
-        text: `Possible, but it fits the litter poorly. ${gl(a)} × ${gl(b)} predicts ${ratioText(dist)}. Is there a pair of genotypes that explains these counts better?`,
+        text: `Possible, but it fits the litter poorly. ${gl(a)} × ${gl(b)} predicts ${midSentence(ratioText(dist))}. Is there a pair of genotypes that explains these counts better?`,
       };
-      return this.render();
+      return this.miss();
     }
     this.solved = true;
     const others = top.filter((s) => !(genotypeKey(t, s.a) === genotypeKey(t, a) && genotypeKey(t, s.b) === genotypeKey(t, b)));
@@ -163,9 +169,39 @@ export class DetectiveStep {
     if (others.length) {
       text += ` These fit equally well: ${others.map((s) => `${gl(s.a)} × ${gl(s.b)}`).join(', ')}. A testcross to a homozygous recessive would tell them apart.`;
     }
+    if (this.revealed) text += ' This matches the answer you were shown, so it does not count as completed. Try a new litter.';
+    else this.mod.complete('detective');
     this.message = { kind: 'good', text };
-    this.mod.complete('detective');
     this.render();
+  }
+
+  miss() {
+    this.attempts++;
+    this.render();
+  }
+
+  // Fills in the pair that best explains the litter: the hidden parents when they fit best, else the best fit.
+  showAnswer() {
+    const t = this.trait;
+    const gl = (g) => genotypeLabel(t, g);
+    const [p1, p2] = this.det.parents;
+    const { top } = this.analysis();
+    const same = (x, y) => genotypeKey(t, x) === genotypeKey(t, y);
+    const best = top.find((s) => same(s.a, p1.alleles) && same(s.b, p2.alleles)) ?? top[0];
+    this.choice = [best.a, best.b].map((g) => this.options.find((o) => o.possible && same(o.alleles, g)));
+    this.revealed = true;
+    this.message = {
+      kind: 'bad',
+      shown: true,
+      text: `Here is one correct answer: ${gl(best.a)} × ${gl(best.b)}. It predicts ${midSentence(ratioText(offspringPhenotypes(t, best.a, best.b)))}, and this litter has ${this.litterText()}. Study it, then press Check.`,
+    };
+    this.render();
+  }
+
+  litterText() {
+    return Object.entries(this.counts)
+      .map(([k, n]) => `${n} ${this.litter.find((x) => x.phenotype.key === k).phenotype.label}`)
+      .join(' · ');
   }
 
   newPuzzle() {
@@ -200,15 +236,15 @@ export class DetectiveStep {
     const p = genotypeGivenPhenotype(t, p1.alleles, p2.alleles, domPheno.key, genotypeKey(t, [D, D]));
     const DD = genotypeLabel(t, [D, D]);
     const het = genotypeLabel(t, [D, r]);
-    const options = ['0', '1/4', '1/3', '1/2', '2/3', '1'];
-    const unconditional = fraction(offspringGenotypes(t, p1.alleles, p2.alleles).find((g) => g.key === genotypeKey(t, [D, D]))?.p ?? 0);
+    const options = [0, 1 / 4, 1 / 3, 1 / 2, 2 / 3, 1].map(fractionGlyph);
+    const unconditional = fractionGlyph(offspringGenotypes(t, p1.alleles, p2.alleles).find((g) => g.key === genotypeKey(t, [D, D]))?.p ?? 0);
     return {
       prompt: `From ${p1.label} × ${p2.label}, pick one offspring with the ${domPheno.label} phenotype at random. What is the probability it is ${DD}?`,
       options: options.map((o) => ({
         label: o,
-        correct: o === fraction(p),
+        correct: o === fractionGlyph(p),
         feedback:
-          o === fraction(p)
+          o === fractionGlyph(p)
             ? `Right. Keep only the ${domPheno.label} part of the Punnett square, then ask what share of it is ${DD}. This is conditional probability.`
             : o === unconditional
               ? `${o} is the chance of ${DD} among all offspring. You already know this one shows ${domPheno.label}, so restrict to those.`
@@ -254,7 +290,12 @@ export class DetectiveStep {
         h('span', { class: 'hint' }, this.choice.some((c) => c && !c.possible) ? 'Choose a possible genotype for each parent.' : 'Choose a genotype for each parent.'),
         h('button', { class: 'btn primary', type: 'button', disabled: !ready, onclick: () => this.check() }, 'Check'),
       ),
-      h('div', { class: `feedback${bad ? ' bad' : ''}`, role: 'status' }, bad ? this.message.text : ''),
+      h(
+        'div',
+        { class: `feedback${bad ? ' bad' : ''}`, role: 'status' },
+        bad ? this.message.text : '',
+        bad && !this.message.shown && this.attempts >= 2 ? [' ', h('button', { class: 'btn small', type: 'button', onclick: () => this.showAnswer() }, 'Show me')] : '',
+      ),
     );
   }
 
@@ -276,9 +317,7 @@ export class DetectiveStep {
         'div',
         { class: 'callout' },
         h('b', {}, 'The litter'),
-        Object.entries(this.counts)
-          .map(([k, n]) => `${n} ${this.litter.find((x) => x.phenotype.key === k).phenotype.label}`)
-          .join(' · '),
+        this.litterText(),
       ),
     );
 
@@ -303,6 +342,8 @@ export class DetectiveStep {
             },
           }),
         );
+      } else if (this.revealed) {
+        body.append(h('div', { class: 'callout' }, h('b', {}, 'Now solve one on your own'), 'Try a new litter, or start a fresh instance with a different creature and trait.'));
       } else {
         body.append(
           h('div', { class: 'callout' }, h('b', {}, 'Module 1 complete'), 'Try a new litter, or start a fresh instance with a different creature and trait.'),

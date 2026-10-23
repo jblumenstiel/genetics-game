@@ -7,6 +7,7 @@ import {
   offspringGenotypes,
   integerRatio,
   fraction,
+  fractionGlyph,
   genotypeGivenPhenotype,
   logLikelihood,
 } from '../js/engine/cross.js';
@@ -44,6 +45,11 @@ test('Ss x Ss gives 3 spotted : 1 plain and 1/4 SS', () => {
 
 test('P(SS given spotted) from Ss x Ss is 1/3', () => {
   assert.equal(fraction(genotypeGivenPhenotype(TRAITS.spots, ['S', 's'], ['S', 's'], 'spotted', 'S/S')), '1/3');
+});
+
+test('fraction glyphs: single characters where they exist, plain fractions otherwise', () => {
+  assert.deepEqual([0, 0.5, 0.25, 0.75, 1 / 3, 2 / 3, 1].map(fractionGlyph), ['0', '½', '¼', '¾', '⅓', '⅔', '1']);
+  assert.equal(fractionGlyph(9 / 16), '9/16');
 });
 
 test('incomplete dominance cross gives 1:2:1', () => {

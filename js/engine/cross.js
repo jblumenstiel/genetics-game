@@ -75,6 +75,14 @@ export function fraction(p) {
   return p.toFixed(3);
 }
 
+const GLYPHS = { '1/2': '½', '1/3': '⅓', '2/3': '⅔', '1/4': '¼', '3/4': '¾', '1/8': '⅛', '3/8': '⅜', '5/8': '⅝', '7/8': '⅞' };
+
+// The same fraction as `fraction`, written as a single character where one exists ("½", "¼"), else "9/16".
+export function fractionGlyph(p) {
+  const f = fraction(p);
+  return GLYPHS[f] ?? f;
+}
+
 // Multinomial log-likelihood of observed phenotype counts, without the constant coefficient.
 // Returns -Infinity when the hypothesis cannot produce an observed class.
 export function logLikelihood(counts, dist) {

@@ -5,7 +5,7 @@ import { h, clear, question } from '../../core/dom.js';
 import { PALETTE } from '../../core/palette.js';
 import { meiosis } from '../../engine/meiosis.js';
 import { alleleLabel } from '../../engine/phenotype.js';
-import { fraction } from '../../engine/cross.js';
+import { fractionGlyph } from '../../engine/cross.js';
 import { label } from '../../render/chromosome.js';
 import { creatureCard, gameteView } from './instance.js';
 
@@ -228,13 +228,13 @@ export class GametesStep {
         question({
           prompt: `What fraction of ${this.parent.name}’s gametes carry ${tl}?`,
           options: [0, 0.25, 0.5, 0.75, 1].map((v) => ({
-            label: fraction(v),
+            label: fractionGlyph(v),
             correct: v === p,
             feedback:
               v === p
                 ? `Right. ${this.parent.label} has ${p === 0.5 ? 'one' : p === 1 ? 'two' : 'no'} ${tl} cop${p === 0.5 ? 'y' : 'ies'}, and each gamete gets one of the two copies at random.`
                 : v === 0.25 || v === 0.75
-                  ? 'Each gamete gets one of the two copies, so the answer has to be 0, 1/2 or 1.'
+                  ? 'Each gamete gets one of the two copies, so the answer has to be 0, ½ or 1.'
                   : `Count the ${tl} copies in ${this.parent.label}.`,
           })),
           onCorrect: () => {
@@ -246,7 +246,7 @@ export class GametesStep {
       return;
     }
 
-    body.append(h('p', { class: 'hint' }, `✓ Expected fraction carrying ${tl}: ${fraction(p)}`));
+    body.append(h('p', { class: 'hint' }, `✓ Expected fraction carrying ${tl}: ${fractionGlyph(p)}`));
     if (this.s.phase === 'single') this.renderSingle(body);
     else this.renderMany(body, p);
   }
@@ -328,7 +328,7 @@ export class GametesStep {
         ? h(
             'div',
             { class: 'callout' },
-            h('b', {}, `Close to ${fraction(p)}, with wobble`),
+            h('b', {}, `Close to ${fractionGlyph(p)}, with wobble`),
             'Each gamete is a coin flip between the two copies, so the counts wobble around the expected fraction. The more gametes you collect, the closer the fraction gets to ½.',
           )
         : h('div', { class: 'callout' }, h('b', {}, 'No wobble'), `Both of ${name}’s copies carry ${alleleLabel(this.trait, x)}, so every gamete carries ${alleleLabel(this.trait, x)}${p ? '' : `, and none carry ${tl}`}.`),
