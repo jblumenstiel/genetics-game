@@ -5,7 +5,7 @@ import { h, clear, question } from '../../core/dom.js';
 import { PALETTE } from '../../core/palette.js';
 import { makeRng } from '../../core/rng.js';
 import { allGenotypes, offspringPhenotypes, offspringGenotypes, logLikelihood, genotypeGivenPhenotype, fractionGlyph } from '../../engine/cross.js';
-import { genotypeLabel, genotypeKey } from '../../engine/phenotype.js';
+import { genotypeLabel, genotypeKey, alleleLabel } from '../../engine/phenotype.js';
 import { Creature } from '../../render/creature.js';
 import { genotypeOptions, IMPOSSIBLE_NOTE } from '../../engine/genotypes.js';
 import { creatureCard, breed, makeParent, LETTERS, NAMES } from './instance.js';
@@ -232,24 +232,56 @@ export class DetectiveStep {
       };
     }
     const [D, r] = t.alleles.map((x) => x.id);
+    const gl = (g) => genotypeLabel(t, g);
+    const f = fractionGlyph;
+    const DD = gl([D, D]);
     const domPheno = t.express([D, D]);
-    const p = genotypeGivenPhenotype(t, p1.alleles, p2.alleles, domPheno.key, genotypeKey(t, [D, D]));
-    const DD = genotypeLabel(t, [D, D]);
-    const het = genotypeLabel(t, [D, r]);
-    const options = [0, 1 / 4, 1 / 3, 1 / 2, 2 / 3, 1].map(fractionGlyph);
-    const unconditional = fractionGlyph(offspringGenotypes(t, p1.alleles, p2.alleles).find((g) => g.key === genotypeKey(t, [D, D]))?.p ?? 0);
+    const cross = `${p1.label} × ${p2.label}`;
+    const kids = offspringGenotypes(t, p1.alleles, p2.alleles);
+    const dom = kids.filter((g) => t.express(g.alleles).key === domPheno.key);
+    const options = [0, 1 / 4, 1 / 3, 1 / 2, 2 / 3, 1].map(f);
+    // Neither parent carries the dominant allele, so there is no dominant-phenotype offspring to condition on.
+    if (!dom.length) {
+      const rr = gl([r, r]);
+      const why = `Both parents are ${rr} and can only pass on ${alleleLabel(t, r)}, so every offspring is ${rr} and ${t.express([r, r]).label}.`;
+      return {
+        prompt: `From ${cross}, what is the probability that an offspring is ${domPheno.label}?`,
+        options: options.map((o) => ({
+          label: o,
+          correct: o === '0',
+          feedback: o === '0' ? `Right: 0. ${why}` : `Being ${domPheno.label} takes at least one ${alleleLabel(t, D)}. ${why}`,
+        })),
+      };
+    }
+
+    const total = dom.reduce((sum, g) => sum + g.p, 0);
+    const pDD = dom.find((g) => g.key === genotypeKey(t, [D, D]))?.p ?? 0;
+    const answer = f(pDD / total);
+    const listed = dom.map((g) => `${gl(g.alleles)} (${f(g.p)})`).join(' and ');
+    const lacking = [p1, p2].filter((p) => !p.alleles.includes(D));
+    const explain =
+      pDD === 0
+        ? `${lacking.map((p) => `${p.name} is ${p.label}`).join(' and ')} and can only pass on ${alleleLabel(t, r)}, so no offspring is ${DD}. Every ${domPheno.label} offspring is ${dom.map((g) => gl(g.alleles)).join(' or ')}.`
+        : pDD === total
+          ? `Every ${domPheno.label} offspring of ${cross} is ${DD}.`
+          : total === 1
+            ? `Every offspring of ${cross} is ${domPheno.label}: ${listed}. So ${DD} is ${answer} of them.`
+            : `${domPheno.label[0].toUpperCase()}${domPheno.label.slice(1)} offspring are ${listed}, ${f(total)} in all. ${DD} is ${f(pDD)} ÷ ${f(total)} = ${answer} of them. Keeping only the ${domPheno.label} part of the Punnett square is conditional probability.`;
+    const hint = `The ${domPheno.label} offspring of ${cross} are ${listed}. What share of them is ${DD}?`;
+    const wrong = (o) => {
+      if (o === '0') return `${DD} offspring are possible here: each parent can pass on ${alleleLabel(t, D)}. ${hint}`;
+      if (o === '1') return `Not every ${domPheno.label} offspring is ${DD}. ${hint}`;
+      if (o === f(pDD)) return `${o} is the probability of ${DD} among all offspring, ${gl([r, r])} ones included. You already know this one is ${domPheno.label}. ${hint}`;
+      if (o === f(total)) return `${o} is the probability of being ${domPheno.label} at all. ${hint}`;
+      const other = dom.find((g) => g.key !== genotypeKey(t, [D, D]) && f(g.p / total) === o);
+      if (other) return `${o} is the share of ${gl(other.alleles)} among ${domPheno.label} offspring, not ${DD}. ${hint}`;
+      const anyKid = kids.find((g) => g.key !== genotypeKey(t, [D, D]) && f(g.p) === o);
+      if (anyKid) return `${o} is the probability of ${gl(anyKid.alleles)} among all offspring, not ${DD}. ${hint}`;
+      return hint;
+    };
     return {
-      prompt: `From ${p1.label} × ${p2.label}, pick one offspring with the ${domPheno.label} phenotype at random. What is the probability it is ${DD}?`,
-      options: options.map((o) => ({
-        label: o,
-        correct: o === fractionGlyph(p),
-        feedback:
-          o === fractionGlyph(p)
-            ? `Right. Keep only the ${domPheno.label} part of the Punnett square, then ask what share of it is ${DD}. This is conditional probability.`
-            : o === unconditional
-              ? `${o} is the chance of ${DD} among all offspring. You already know this one shows ${domPheno.label}, so restrict to those.`
-              : `List the ${domPheno.label} offspring genotypes from the Punnett square (${DD} and ${het}) with their probabilities, then take the ${DD} share.`,
-      })),
+      prompt: `From ${cross}, pick one offspring with the ${domPheno.label} phenotype at random. What is the probability it is ${DD}?`,
+      options: options.map((o) => ({ label: o, correct: o === answer, feedback: o === answer ? `Right: ${o}. ${explain}` : wrong(o) })),
     };
   }
 
