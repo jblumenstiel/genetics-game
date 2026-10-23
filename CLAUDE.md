@@ -73,6 +73,9 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
 
 - Students build cells by dragging pieces from the tray: chromosomes with 1 or 2 chromatids, allele chips, the
   nucleus piece and the bin. Drop targets highlight while dragging. Avoid select-then-press-a-button flows.
+- Each question's stage name is the title at the top of the main page ("Mitosis: Metaphase"), without its letter.
+- Forms for a question (like Module 0's gamete list) go on the main page under that title, as HTML in `ctx.stage`
+  styled like the build tray. The side panel keeps the prompt and, once it is right, the result.
 - Metaphase arrangement is chosen on the canvas (bar above the cell, or dropping a chromosome on the plate):
   centromeres single file on the plate, or homologs paired across it.
 - Animations (the how-to demo, anaphase, egg and sperm fusion, the closing "A new bdellbee is born!") lock input
@@ -87,7 +90,7 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
 
 ## Current state and deferred work
 
-- Module 0 (Build the cell) is in use. Module 1 (One gene, one meiosis) and Module 2 (Two genes, two chromosomes) are under construction.
+- Module 0 (Build the cell) is finished and in use. Module 1 (One gene, one meiosis) and Module 2 (Two genes, two chromosomes) are under construction.
 - Crossing over is removed from Module 0's Metaphase I for now. The engine and builder still support it; to bring it
   back, set `crossovers: true` and `minCross` on Question E.
 - Module 1 decisions:
