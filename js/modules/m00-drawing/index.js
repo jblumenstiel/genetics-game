@@ -85,6 +85,9 @@ class DrawingModule {
     this.lockNote = new PIXI.Container();
     this.lockNote.visible = false;
     this.scene.addChild(this.lockNote);
+    // The stage name at the top of the canvas ("Mitosis: Metaphase"), without the question letter.
+    this.titleLayer = new PIXI.Container();
+    this.scene.addChild(this.titleLayer);
     // A question shown above the cell before its nuclei appear (question f: how many nuclei after meiosis I?).
     this.nucleiBar = new PIXI.Container();
     this.scene.addChild(this.nucleiBar);
@@ -245,7 +248,7 @@ class DrawingModule {
       {
         id: 'h',
         title: 'Gamete list',
-        prompt: () => 'List every gamete genotype this individual can make and the expected frequency of each. Assume normal meiosis (no non-disjunction). No drawing needed.',
+        prompt: () => 'List every gamete genotype this individual can make and the expected frequency of each. Assume normal meiosis (no non-disjunction).',
         list: true,
       },
     ];
@@ -378,6 +381,7 @@ class DrawingModule {
     if (this.birthFrame) this.ctx.tween.ticker.remove(this.birthFrame);
     this.birthFrame = null;
     this.birthLayer.removeChildren().forEach((c) => c.destroy({ children: true }));
+    this.titleLayer.visible = true;
   }
 
   // An egg and a sperm, each carrying a gamete genotype this individual can make, meet and begin to fuse; then a
@@ -396,6 +400,8 @@ class DrawingModule {
       title: this.birthCount === 0 ? 'A new bdellbee is born!' : 'Another bdellbee is born!',
       done: false,
     };
+    // The celebration has its own heading in the same spot.
+    this.titleLayer.visible = false;
     this.animateBirth(false);
   }
 
@@ -732,11 +738,28 @@ class DrawingModule {
     return height;
   }
 
+  // Returns the height the title takes, or 0 on the intro.
+  drawTitle(w) {
+    this.titleLayer.removeChildren().forEach((c) => c.destroy());
+    if (this.step.intro) return 0;
+    const t = new PIXI.Text({
+      text: this.step.title,
+      style: { fontFamily: 'Fraunces, Georgia, serif', fontWeight: '600', fontSize: w < 480 ? 20 : 24, fill: PALETTE.ink },
+      resolution: 2,
+    });
+    t.anchor.set(0.5, 0);
+    t.position.set(w / 2, 12);
+    this.titleLayer.addChild(t);
+    return t.y + t.height;
+  }
+
   layout() {
     const { w, h: hgt } = this.ctx.size();
     this.drawIntro(w, hgt);
     if (this.birth?.done) this.animateBirth(true);
-    const top = this.drawNucleiBar(w);
+    const titleH = this.drawTitle(w);
+    this.nucleiBar.y = titleH;
+    const top = titleH + this.drawNucleiBar(w);
     this.builder.setRect({ x: 12, y: 28 + top, w: w - 24, h: hgt - 36 - top });
     // The panel sits to the right on wide screens and below on narrow ones.
     this.lockNote.removeChildren().forEach((c) => c.destroy());
