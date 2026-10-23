@@ -26,13 +26,17 @@ export class BreedStep {
     this.kids = [];
   }
 
+  title() {
+    return 'Breeding: predict, then breed';
+  }
+
   enter(container, body) {
     this.container = container;
     this.body = body;
     this.layer = new PIXI.Container();
     this.kidLayer = new PIXI.Container();
     container.addChild(this.layer, this.kidLayer);
-    const { w, h: hgt } = this.mod.ctx.size();
+    const { w, h: hgt } = this.mod.size();
     this.resize(w, hgt);
     this.renderPanel();
   }

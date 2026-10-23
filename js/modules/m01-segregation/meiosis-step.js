@@ -170,6 +170,16 @@ export class MeiosisStep {
     return this.stages[this.index];
   }
 
+  // G1 and S phase come before either division, so they are named as interphase.
+  stageName(s = this.stage) {
+    if (s.id === 'G1' || s.id === 'S') return `Interphase: ${s.name}`;
+    return `${this.mode === 'meiosis' ? 'Meiosis' : 'Mitosis'}: ${s.name}`;
+  }
+
+  title() {
+    return this.stageName();
+  }
+
   key(stage) {
     return stage.id === 'G1' || stage.id === 'S' ? stage.id : `${this.mode}:${stage.id}`;
   }
@@ -194,7 +204,7 @@ export class MeiosisStep {
 
     this.frame = () => this.draw();
     this.app.ticker.add(this.frame);
-    const { w, h: hgt } = this.mod.ctx.size();
+    const { w, h: hgt } = this.mod.size();
     this.resize(w, hgt);
     this.renderPanel();
   }
@@ -525,6 +535,7 @@ export class MeiosisStep {
   }
 
   renderPanel() {
+    this.mod.refreshTitle();
     const s = this.stage;
     const n = this.stages.length;
     const last = this.index === n - 1;
@@ -540,7 +551,7 @@ export class MeiosisStep {
       body.append(h('p', {}, `A quick review: follow ${name}’s gene (${geno}) through one meiosis, and watch where the two alleles go.`));
     }
     body.append(
-      h('div', { class: 'stage-name' }, `${this.mode === 'meiosis' ? 'Meiosis' : 'Mitosis'} · stage ${this.index + 1} of ${n} · ${s.name}`),
+      h('div', { class: 'stage-name' }, `${this.stageName()} · stage ${this.index + 1} of ${n}`),
       h('h2', {}, s.title),
       h('p', {}, s.text),
     );

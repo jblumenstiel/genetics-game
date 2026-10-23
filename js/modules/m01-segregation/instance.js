@@ -12,7 +12,7 @@ import { Creature } from '../../render/creature.js';
 import { ChromatidView, label } from '../../render/chromosome.js';
 import { alleleOn } from '../../engine/genome.js';
 
-const LETTERS = ['A', 'B', 'D', 'G', 'H', 'P', 'R', 'T'];
+export const LETTERS = ['A', 'B', 'D', 'G', 'H', 'P', 'R', 'T'];
 
 // One pigment gene: the capital allele makes a working pigment enzyme (dominant), the lowercase allele is broken
 // (recessive). A bdellbee is colored when it has at least one working copy and white when it has none.

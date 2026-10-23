@@ -7,7 +7,8 @@ import { makeRng } from '../../core/rng.js';
 import { allGenotypes, offspringPhenotypes, offspringGenotypes, logLikelihood, genotypeGivenPhenotype, fraction } from '../../engine/cross.js';
 import { genotypeLabel, genotypeKey } from '../../engine/phenotype.js';
 import { Creature } from '../../render/creature.js';
-import { creatureCard, breed, makeParent } from './instance.js';
+import { genotypeOptions, IMPOSSIBLE_NOTE } from '../../engine/genotypes.js';
+import { creatureCard, breed, makeParent, LETTERS } from './instance.js';
 import { ratioText } from './breed-step.js';
 import { pick, shuffle, int } from '../../core/rng.js';
 
@@ -25,9 +26,17 @@ export class DetectiveStep {
     this.litter = Array.from({ length: det.litterSize }, () => breed(this.inst, det.parents[0], det.parents[1], this.rng));
     this.counts = {};
     for (const k of this.litter) this.counts[k.phenotype.key] = (this.counts[k.phenotype.key] ?? 0) + 1;
+    // Each parent's genotype is chosen from possible and impossible one-line genotypes, shuffled once per puzzle.
+    // Drawn after the litter, so the litter for a seed is unchanged.
+    const [D, r] = this.trait.alleles.map((x) => x.id);
+    this.options = genotypeOptions([D, r], pick(this.rng, LETTERS.filter((x) => x !== D)), this.rng);
     this.choice = [null, null];
     this.solved = false;
     this.message = null;
+  }
+
+  title() {
+    return 'Detective: who are the parents?';
   }
 
   enter(container, body) {
@@ -35,33 +44,66 @@ export class DetectiveStep {
     this.body = body;
     this.layer = new PIXI.Container();
     container.addChild(this.layer);
-    const { w, h: hgt } = this.mod.ctx.size();
-    this.resize(w, hgt);
-    this.renderPanel();
+    // The parents' genotype choices sit on the main page as HTML, under the litter.
+    this.sheet = h('div', { class: 'stage-sheet at-bottom', hidden: true });
+    this.mod.ctx.stage.append(this.sheet);
+    const { w, h: hgt } = this.mod.size();
+    this.w = w;
+    this.h = hgt;
+    this.render(true);
   }
 
   exit() {
     this.destroyScene();
+    this.sheet.remove();
   }
 
   destroyScene() {
     this.layer.removeChildren().forEach((c) => c.destroy({ children: true }));
   }
 
+  // Canvas height the sheet covers, with its margins.
+  sheetSpace() {
+    return this.sheet.hidden ? 0 : this.sheet.offsetHeight + 24;
+  }
+
+  // The sheet's height decides how much canvas is left above it, so the scene follows any change in it.
+  render(relayout = false) {
+    this.renderSheet();
+    this.renderPanel();
+    if (relayout) this.resize(this.w, this.h);
+    else this.fit();
+  }
+
+  fit() {
+    if (this.sheetSpace() !== this.laidOutFor) this.resize(this.w, this.h);
+  }
+
   resize(w, hgt) {
     this.w = w;
     this.h = hgt;
     this.destroyScene();
-    const size = Math.max(60, Math.min(96, hgt * 0.14));
+    this.laidOutFor = this.sheetSpace();
+    const room = hgt - this.laidOutFor;
+    const size = Math.max(44, Math.min(96, room * 0.17));
+    let top = 0;
     this.cards = this.det.parents.map((p, i) => {
       const card = creatureCard(p, { size, genotype: this.solved ? p.label : '?' });
-      card.container.position.set(w * (0.32 + i * 0.36), size * 0.7);
+      const b = card.container.getLocalBounds();
+      card.container.position.set(w * (0.32 + i * 0.36), 6 - b.y);
+      top = Math.max(top, card.container.y + b.y + b.height + 10);
       this.layer.addChild(card.container);
       return card;
     });
-    const top = size * 2.25;
-    const cols = Math.min(this.litter.length, Math.max(4, Math.floor((w - 40) / 84)));
-    const cell = Math.min(90, (w - 40) / cols);
+    // The litter fills what is left, in whichever number of columns makes each bdellbee largest (the widest on a tie).
+    const n = this.litter.length;
+    let cols = 1;
+    let cell = 0;
+    for (let c = 1; c <= n; c++) {
+      const s = Math.min(90, (w - 40) / c, (room - top) / Math.ceil(n / c));
+      if (s >= cell) [cols, cell] = [c, s];
+    }
+    cell = Math.max(20, cell);
     const kidSize = cell * 0.6;
     this.litter.forEach((k, i) => {
       const row = Math.floor(i / cols);
@@ -84,7 +126,7 @@ export class DetectiveStep {
   }
 
   check() {
-    const [a, b] = this.choice;
+    const [a, b] = this.choice.map((c) => c.alleles);
     const [p1, p2] = this.det.parents;
     const t = this.trait;
     const gl = (g) => genotypeLabel(t, g);
@@ -94,7 +136,7 @@ export class DetectiveStep {
     ]) {
       if (t.express(g).key !== p.phenotype.key) {
         this.message = { kind: 'bad', text: `Genotype ${gl(g)} gives the ${t.express(g).label} phenotype, but ${p.name} shows ${p.phenotype.label}.` };
-        return this.renderPanel();
+        return this.render();
       }
     }
     const dist = offspringPhenotypes(t, a, b);
@@ -103,7 +145,7 @@ export class DetectiveStep {
       const impossible = Object.keys(this.counts).find((k) => !dist.some((d) => d.key === k && d.p > 0));
       const name = this.litter.find((k) => k.phenotype.key === impossible).phenotype.label;
       this.message = { kind: 'bad', text: `${gl(a)} × ${gl(b)} can never produce the ${name} phenotype, but ${this.counts[impossible]} of the litter show it.` };
-      return this.renderPanel();
+      return this.render();
     }
     const { top } = this.analysis();
     const isTop = top.some((s) => genotypeKey(t, s.a) === genotypeKey(t, a) && genotypeKey(t, s.b) === genotypeKey(t, b));
@@ -112,7 +154,7 @@ export class DetectiveStep {
         kind: 'bad',
         text: `Possible, but it fits the litter poorly. ${gl(a)} × ${gl(b)} predicts ${ratioText(dist)}. Is there a pair of genotypes that explains these counts better?`,
       };
-      return this.renderPanel();
+      return this.render();
     }
     this.solved = true;
     const others = top.filter((s) => !(genotypeKey(t, s.a) === genotypeKey(t, a) && genotypeKey(t, s.b) === genotypeKey(t, b)));
@@ -122,9 +164,8 @@ export class DetectiveStep {
       text += ` These fit equally well: ${others.map((s) => `${gl(s.a)} × ${gl(s.b)}`).join(', ')}. A testcross to a homozygous recessive would tell them apart.`;
     }
     this.message = { kind: 'good', text };
-    this.cards.forEach((c, i) => c.setGenotype(this.det.parents[i].label));
     this.mod.complete('detective');
-    this.renderPanel();
+    this.render();
   }
 
   newPuzzle() {
@@ -139,8 +180,7 @@ export class DetectiveStep {
       seed: Math.floor(rng() * 0xffffffff),
     });
     this.mod.state.answered.delete('detective:conditional');
-    this.resize(this.w, this.h);
-    this.renderPanel();
+    this.render(true);
   }
 
   conditionalQuestion() {
@@ -177,11 +217,58 @@ export class DetectiveStep {
     };
   }
 
+  // One row per parent: its name and phenotype, then a dropdown of possible and impossible genotypes. An impossible
+  // pick is explained under its row. Hidden once the puzzle is solved.
+  renderSheet() {
+    const sheet = clear(this.sheet);
+    sheet.hidden = this.solved;
+    if (this.solved) return;
+    const bad = this.message?.kind === 'bad';
+    const ready = this.choice.every((c) => c?.possible);
+    sheet.append(
+      h(
+        'div',
+        { class: 'dt-rows' },
+        this.det.parents.flatMap((p, i) => {
+          const sel = h(
+            'select',
+            { class: 'gl-field', 'aria-label': `${p.name}’s genotype` },
+            h('option', { value: '' }, 'choose…'),
+            this.options.map((o, k) => h('option', { value: String(k), selected: this.choice[i] === o }, o.text)),
+          );
+          sel.addEventListener('change', () => {
+            this.choice[i] = sel.value === '' ? null : this.options[Number(sel.value)];
+            this.message = null;
+            this.render();
+          });
+          const chosen = this.choice[i];
+          return [
+            h('div', { class: 'dt-row' }, h('span', { class: 'dt-name' }, h('b', {}, p.name), h('small', {}, p.phenotype.label)), sel),
+            chosen && !chosen.possible ? this.impossibleNote(chosen) : '',
+          ];
+        }),
+      ),
+      h(
+        'div',
+        { class: 'gl-actions' },
+        h('span', { class: 'hint' }, this.choice.some((c) => c && !c.possible) ? 'Choose a possible genotype for each parent.' : 'Choose a genotype for each parent.'),
+        h('button', { class: 'btn primary', type: 'button', disabled: !ready, onclick: () => this.check() }, 'Check'),
+      ),
+      h('div', { class: `feedback${bad ? ' bad' : ''}`, role: 'status' }, bad ? this.message.text : ''),
+    );
+  }
+
+  // On a phone the reason folds away behind "Why?", so the litter stays in view above the sheet.
+  impossibleNote(option) {
+    if (window.innerWidth > 480) return h('div', { class: 'feedback bad' }, h('b', {}, IMPOSSIBLE_NOTE), ' ', option.reason);
+    const note = h('details', { class: 'feedback bad dt-why' }, h('summary', {}, h('b', {}, IMPOSSIBLE_NOTE), ' ', h('span', {}, 'Why?')), option.reason);
+    note.addEventListener('toggle', () => this.fit());
+    return note;
+  }
+
   renderPanel() {
     const body = clear(this.body);
-    const t = this.trait;
     const [p1, p2] = this.det.parents;
-    const genos = allGenotypes(t);
     body.append(
       h('h2', {}, 'Detective: who are the parents?'),
       h('p', {}, `${p1.name} and ${p2.name} had this litter of ${this.litter.length}. You can see their phenotypes, not their genotypes.`),
@@ -195,41 +282,17 @@ export class DetectiveStep {
       ),
     );
 
-    [p1, p2].forEach((p, i) => {
+    if (!this.solved) {
       body.append(
         h(
           'div',
-          { class: 'picker' },
-          h('div', { class: 'picker-label' }, `${p.name} (${p.phenotype.label}) is…`),
-          h(
-            'div',
-            { class: 'choices inline' },
-            genos.map((g) =>
-              h(
-                'button',
-                {
-                  class: `choice${this.choice[i] && genotypeKey(t, this.choice[i]) === genotypeKey(t, g) ? ' right' : ''}`,
-                  disabled: this.solved,
-                  onclick: () => {
-                    this.choice[i] = g;
-                    this.message = null;
-                    this.renderPanel();
-                  },
-                },
-                genotypeLabel(t, g),
-              ),
-            ),
-          ),
+          { class: 'callout' },
+          h('b', {}, `Choose the parents’ genotypes on the main page ${window.innerWidth > 860 ? '←' : '↑'}`),
+          'Use each parent’s phenotype and the litter, then press Check.',
         ),
       );
-    });
-
-    if (!this.solved) {
-      body.append(h('div', { class: 'row' }, h('button', { class: 'btn primary', disabled: !this.choice[0] || !this.choice[1], onclick: () => this.check() }, 'Check')));
-    }
-    if (this.message) body.append(h('div', { class: `feedback ${this.message.kind}` }, this.message.text));
-
-    if (this.solved) {
+    } else {
+      body.append(h('div', { class: 'feedback good' }, this.message.text));
       if (!this.mod.state.answered.has('detective:conditional')) {
         body.append(
           question({

@@ -42,7 +42,7 @@ export class IntroStep {
       ),
       h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => this.mod.next() }, `Start: ${stepLetter(0)}. ${this.steps[0].title} ▶`)),
     );
-    const { w, h: hgt } = this.mod.ctx.size();
+    const { w, h: hgt } = this.mod.size();
     this.resize(w, hgt);
   }
 

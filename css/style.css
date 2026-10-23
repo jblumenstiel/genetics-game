@@ -147,6 +147,22 @@ select.gl-field {
 .gl-add { border: 2px dashed #c9b89b; background: transparent; color: var(--ink-soft); }
 .gl-add:hover:not(:disabled) { border-color: var(--sage); color: var(--sage-deep); }
 .stage-sheet .feedback { margin-top: 12px; }
+/* Module 1's detective: the parents' genotype choices sit at the bottom of the main page, under the litter. */
+.stage-sheet.at-bottom { top: auto; bottom: 12px; }
+.stage-sheet.at-bottom .gl-actions { align-items: center; margin-top: 12px; }
+.dt-rows { display: grid; gap: 10px; }
+.dt-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.dt-name { flex: 1 1 90px; display: grid; line-height: 1.25; }
+.dt-name small { font-size: 13px; color: var(--ink-soft); }
+.dt-row .gl-field { flex: 0 1 200px; width: auto; min-width: 0; }
+.dt-rows > .feedback { margin: -2px 0 0; }
+.dt-why summary { cursor: pointer; list-style: none; }
+.dt-why summary::-webkit-details-marker { display: none; }
+.dt-why summary span { text-decoration: underline; white-space: nowrap; }
+/* On a phone the sheet keeps to the lower part of the stage and scrolls, so the litter stays in view. */
+@media (max-width: 480px) {
+  .stage-sheet.at-bottom { padding: 12px 14px; max-height: 55%; }
+}
 .panel {
   border-left: 1px solid var(--line);
   background: var(--panel);
@@ -248,6 +264,7 @@ select.gl-field {
 
 .callout { background: var(--ochre-wash); border-radius: 12px; padding: 12px 14px; font-size: 14px; }
 .callout b { display: block; margin-bottom: 2px; }
+.callout + .callout { margin-top: 10px; }
 
 .punnett { border-collapse: collapse; margin: 4px 0 6px; font-size: 14px; }
 .punnett th, .punnett td { border: 1px solid var(--line); padding: 6px 8px; text-align: center; min-width: 76px; }

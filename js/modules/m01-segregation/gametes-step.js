@@ -24,6 +24,10 @@ export class GametesStep {
     this.s = mod.state.gametes ??= { phase: 'single', singles: [], dots: [] };
   }
 
+  title() {
+    return 'Gametes: from one meiosis to many';
+  }
+
   enter(container, body) {
     this.container = container;
     this.body = body;
@@ -34,7 +38,7 @@ export class GametesStep {
     this.gameteLayer = new PIXI.Container();
     this.dotLayer = new PIXI.Container();
     container.addChild(this.layer, this.gameteLayer, this.dotLayer);
-    const { w, h: hgt } = this.mod.ctx.size();
+    const { w, h: hgt } = this.mod.size();
     this.resize(w, hgt);
     this.renderPanel();
   }

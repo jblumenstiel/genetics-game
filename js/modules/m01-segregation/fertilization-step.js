@@ -48,7 +48,7 @@ export class FertilizationStep {
   enter(container, body) {
     this.container = container;
     this.body = body;
-    const { w, h: hgt } = this.mod.ctx.size();
+    const { w, h: hgt } = this.mod.size();
     this.resize(w, hgt);
     this.renderPanel();
     if (this.s.phase === 'grid' && !this.s.gridShown) this.revealGrid();
@@ -514,8 +514,13 @@ export class FertilizationStep {
 
   // ---- panel ----
 
+  title() {
+    return this.s.phase === 'one' ? 'Fertilization: one egg meets one sperm' : 'Fertilization: the Punnett square';
+  }
+
   renderPanel() {
     if (this.exited) return;
+    this.mod.refreshTitle();
     const body = clear(this.body);
     if (this.s.phase === 'one') this.renderOne(body);
     else this.renderGrid(body);

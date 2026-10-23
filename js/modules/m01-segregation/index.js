@@ -3,6 +3,7 @@
 // fertilization, breeding, detective.
 
 import { h, clear } from '../../core/dom.js';
+import { PALETTE } from '../../core/palette.js';
 import { moduleEyebrow, stepLetter } from '../registry.js';
 import { buildInstance } from './instance.js';
 import { IntroStep } from './intro-step.js';
@@ -26,8 +27,35 @@ class SegregationModule {
       { id: 'breed', title: 'Breed', make: () => new BreedStep(this) },
       { id: 'detective', title: 'Detective', make: () => new DetectiveStep(this) },
     ];
+    // The stage name at the top of the canvas ("Meiosis: Prophase I"), without the step letter. Steps draw below it.
+    this.titleLayer = new PIXI.Container();
+    this.titleH = 0;
+    ctx.root.addChild(this.titleLayer);
     this.buildPanel();
     this.go(0);
+  }
+
+  // The canvas area below the title, where steps lay out.
+  size() {
+    const { w, h: hgt } = this.ctx.size();
+    return { w, h: hgt - this.titleH };
+  }
+
+  // Redraws the step's title. Its height depends only on the canvas width, so the step never has to lay out again.
+  refreshTitle() {
+    this.titleLayer.removeChildren().forEach((c) => c.destroy());
+    const text = this.step?.title?.();
+    const { w } = this.ctx.size();
+    const fontSize = w < 480 ? 20 : 24;
+    this.titleH = text ? 12 + Math.ceil(fontSize * 1.3) : 0;
+    if (this.container) this.container.y = this.titleH;
+    if (!text) return;
+    const t = new PIXI.Text({ text, style: { fontFamily: 'Fraunces, Georgia, serif', fontWeight: '600', fontSize, fill: PALETTE.ink }, resolution: 2 });
+    // A long title shrinks to stay on one line.
+    t.scale.set(Math.min(1, (w - 32) / t.width));
+    t.anchor.set(0.5, 0);
+    t.position.set(w / 2, 12);
+    this.titleLayer.addChild(t);
   }
 
   buildPanel() {
@@ -101,6 +129,7 @@ class SegregationModule {
     this.ctx.root.addChild(this.container);
     clear(this.body);
     this.step = this.steps[i].make();
+    this.refreshTitle();
     this.step.enter(this.container, this.body);
     this.renderStepper();
     this.ctx.panel.scrollTop = 0;
@@ -115,13 +144,16 @@ class SegregationModule {
     this.renderStepper();
   }
 
-  resize(w, hgt) {
+  resize() {
+    this.refreshTitle();
+    const { w, h: hgt } = this.size();
     this.step?.resize?.(w, hgt);
   }
 
   destroy() {
     this.step?.exit();
     this.container?.destroy({ children: true });
+    this.titleLayer.destroy({ children: true });
   }
 }
 
