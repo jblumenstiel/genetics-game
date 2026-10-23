@@ -97,7 +97,6 @@ class SegregationModule {
         'div',
         { class: 'panel-foot' },
         h('span', {}, `Seed ${this.ctx.seed}`),
-        h('button', { class: 'btn small', onclick: () => this.ctx.newSeed() }, 'New creatures'),
       ),
     );
   }

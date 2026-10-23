@@ -467,18 +467,12 @@ export class MeiosisStep {
     this.renderPanel();
   }
 
+  // Mitosis is a side trip: it starts at G1, and coming back returns to the meiosis stage the student left.
   setMode(mode) {
     if (mode === this.mode) return;
+    if (mode === 'mitosis') this.returnTo = this.index;
     this.mode = mode;
-    this.index = 0;
-    this.apply(true);
-    this.renderPanel();
-  }
-
-  restart() {
-    this.orient = this.inst.rng() < 0.5 ? 0 : 1;
-    this.flips = 0;
-    this.index = 0;
+    this.index = mode === 'meiosis' ? (this.returnTo ?? 0) : 0;
     this.apply(true);
     this.renderPanel();
   }
@@ -604,9 +598,11 @@ export class MeiosisStep {
       'div',
       { class: 'row' },
       h('button', { class: 'btn', disabled: this.index === 0, onclick: () => this.goTo(this.index - 1) }, '◀ Back'),
-      last
-        ? h('button', { class: 'btn', onclick: () => this.restart() }, 'Run it again')
-        : h('button', { class: 'btn primary', disabled: !this.canAdvance(), onclick: () => this.goTo(this.index + 1) }, 'Next stage ▶'),
+      !last
+        ? h('button', { class: 'btn primary', disabled: !this.canAdvance(), onclick: () => this.goTo(this.index + 1) }, 'Next stage ▶')
+        : this.mode === 'mitosis'
+          ? h('button', { class: 'btn primary', disabled: !this.canAdvance(), onclick: () => this.setMode('meiosis') }, 'Back to meiosis ▶')
+          : '',
     );
     body.append(nav);
 
