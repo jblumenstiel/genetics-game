@@ -1,5 +1,6 @@
 // Step E: the reverse problem. Given two parents' phenotypes and a litter, infer the parents' genotypes.
-// Hypotheses are scored by likelihood, so "possible but unlikely" answers get their own feedback.
+// The parents' genotypes are set when the puzzle is made and the litter comes from real meioses, so any pair that
+// could have produced the litter is a reasonable hypothesis; the result then names the parents actually used.
 
 import { h, clear, question } from '../../core/dom.js';
 import { PALETTE } from '../../core/palette.js';
@@ -120,15 +121,15 @@ export class DetectiveStep {
     });
   }
 
-  // Genotypes consistent with each parent's phenotype, and the most likely pairs given the litter.
-  analysis() {
+  // Every pair of genotypes that fits the parents' phenotypes and could have produced this litter. Possible is all
+  // the grader asks for: a litter can be unlikely under the true parents and likelier under another possible pair.
+  possiblePairs() {
     const genos = allGenotypes(this.trait);
     const [p1, p2] = this.det.parents;
     const fits = (p) => genos.filter((g) => this.trait.express(g).key === p.phenotype.key);
-    const scored = [];
-    for (const a of fits(p1)) for (const b of fits(p2)) scored.push({ a, b, ll: logLikelihood(this.counts, offspringPhenotypes(this.trait, a, b)) });
-    const best = Math.max(...scored.map((s) => s.ll));
-    return { scored, best, top: scored.filter((s) => s.ll >= best - 1e-9) };
+    const pairs = [];
+    for (const a of fits(p1)) for (const b of fits(p2)) if (logLikelihood(this.counts, offspringPhenotypes(this.trait, a, b)) > -Infinity) pairs.push({ a, b });
+    return pairs;
   }
 
   check() {
@@ -136,45 +137,32 @@ export class DetectiveStep {
     const [p1, p2] = this.det.parents;
     const t = this.trait;
     const gl = (g) => genotypeLabel(t, g);
+    const impossible = (why) => {
+      this.message = { kind: 'bad', text: `This is not a possible set of parent genotypes under standard conditions. ${why}` };
+      this.miss();
+    };
     for (const [g, p] of [
       [a, p1],
       [b, p2],
     ]) {
-      if (t.express(g).key !== p.phenotype.key) {
-        this.message = { kind: 'bad', text: `Genotype ${gl(g)} gives the ${t.express(g).label} phenotype, but ${p.name} shows ${p.phenotype.label}.` };
-        return this.miss();
-      }
+      if (t.express(g).key !== p.phenotype.key) return impossible(`${gl(g)} gives the ${t.express(g).label} phenotype, but ${p.name} is ${p.phenotype.label}.`);
     }
     const dist = offspringPhenotypes(t, a, b);
-    const ll = logLikelihood(this.counts, dist);
-    if (ll === -Infinity) {
-      const impossible = Object.keys(this.counts).find((k) => !dist.some((d) => d.key === k && d.p > 0));
-      const name = this.litter.find((k) => k.phenotype.key === impossible).phenotype.label;
-      this.message = { kind: 'bad', text: `${gl(a)} × ${gl(b)} can never produce the ${name} phenotype, but ${this.counts[impossible]} of the litter show it.` };
-      return this.miss();
+    const missing = Object.keys(this.counts).find((k) => !dist.some((d) => d.key === k && d.p > 0));
+    if (missing) {
+      const name = this.litter.find((k) => k.phenotype.key === missing).phenotype.label;
+      const n = this.counts[missing];
+      return impossible(`${gl(a)} × ${gl(b)} can never produce a ${name} offspring, but ${n} of the litter ${n === 1 ? 'is' : 'are'} ${name}.`);
     }
-    const { top } = this.analysis();
-    const isTop = top.some((s) => genotypeKey(t, s.a) === genotypeKey(t, a) && genotypeKey(t, s.b) === genotypeKey(t, b));
-    if (!isTop) {
-      this.message = {
-        kind: 'bad',
-        text: `Possible, but it fits the litter poorly. ${gl(a)} × ${gl(b)} predicts ${midSentence(ratioText(dist))}. Is there a pair of genotypes that explains these counts better?`,
-      };
-      return this.miss();
-    }
+
+    // Any possible pair is a reasonable hypothesis. Then say whether it is forced, and what the hidden parents were.
     this.solved = true;
-    const others = top.filter((s) => !(genotypeKey(t, s.a) === genotypeKey(t, a) && genotypeKey(t, s.b) === genotypeKey(t, b)));
+    const same = (x, y) => genotypeKey(t, x) === genotypeKey(t, y);
     const truth = `${gl(p1.alleles)} × ${gl(p2.alleles)}`;
-    const possible = this.analysis().scored.filter((s) => s.ll > -Infinity);
-    let text;
-    if (possible.length === 1) {
-      text = `Yes: ${gl(a)} × ${gl(b)} is the only possible pair of parent genotypes. ${this.whyOnly(a, b)}`;
-    } else {
-      text = `That explains the litter as well as any hypothesis can. The hidden parents were ${truth}.`;
-      if (others.length) {
-        text += ` These fit equally well: ${others.map((s) => `${gl(s.a)} × ${gl(s.b)}`).join(', ')}. A testcross to a homozygous recessive would tell them apart.`;
-      }
-    }
+    let text = 'This is a reasonable hypothesis.';
+    if (this.possiblePairs().length === 1) text += ` In fact, ${gl(a)} × ${gl(b)} is the only possible pair of parent genotypes. ${this.whyOnly(a, b)}`;
+    else if (same(a, p1.alleles) && same(b, p2.alleles)) text += ` In this particular scenario, the parents were indeed ${truth}.`;
+    else text += ` However, in this particular scenario, the parents were ${truth}.`;
     if (this.revealed) text += ' This matches the answer you were shown, so it does not count as completed. Pick different parents to try one on your own.';
     else this.mod.complete('detective');
     this.message = { kind: 'good', text };
@@ -209,20 +197,19 @@ export class DetectiveStep {
     this.render();
   }
 
-  // Fills in the pair that best explains the litter: the hidden parents when they fit best, else the best fit.
+  // Fills in the hidden parents of this scenario, with what they predict next to the litter.
   showAnswer() {
     const t = this.trait;
     const gl = (g) => genotypeLabel(t, g);
     const [p1, p2] = this.det.parents;
-    const { top } = this.analysis();
     const same = (x, y) => genotypeKey(t, x) === genotypeKey(t, y);
-    const best = top.find((s) => same(s.a, p1.alleles) && same(s.b, p2.alleles)) ?? top[0];
+    const best = { a: p1.alleles, b: p2.alleles };
     this.choice = [best.a, best.b].map((g) => this.options.find((o) => o.possible && same(o.alleles, g)));
     this.revealed = true;
     this.message = {
       kind: 'bad',
       shown: true,
-      text: `Here is one correct answer: ${gl(best.a)} × ${gl(best.b)}. It predicts ${midSentence(ratioText(offspringPhenotypes(t, best.a, best.b)))}, and this litter has ${this.litterText()}. Study it, then press Check.`,
+      text: `In this scenario the parents were ${gl(best.a)} × ${gl(best.b)}. That cross predicts ${midSentence(ratioText(offspringPhenotypes(t, best.a, best.b)))}, and this litter has ${this.litterText()}. Study it, then press Check.`,
     };
     this.render();
   }
