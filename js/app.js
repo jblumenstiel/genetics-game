@@ -185,6 +185,8 @@ async function showModule(entry, params) {
     app,
     root,
     panel: els.panel,
+    // The element behind the canvas, for HTML that sits on the main page (a form is easier to use as HTML).
+    stage: els.stage,
     seed,
     rng: makeRng(seed),
     tween,

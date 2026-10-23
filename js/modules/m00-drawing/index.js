@@ -98,6 +98,9 @@ class DrawingModule {
     this.birthLayer = new PIXI.Container();
     this.scene.addChild(this.birthLayer);
     this.birthToken = 0;
+    // Question H's gamete list sits on the main page as HTML, under the canvas title.
+    this.sheet = h('div', { class: 'stage-sheet', hidden: true });
+    ctx.stage.append(this.sheet);
 
     this.buildPanel();
     this.go(0);
@@ -148,6 +151,7 @@ class DrawingModule {
         delete this.attempts[id];
       }
       this.listRows = null;
+      this.listResult = null;
     }
   }
 
@@ -400,8 +404,9 @@ class DrawingModule {
       title: this.birthCount === 0 ? 'A new bdellbee is born!' : 'Another bdellbee is born!',
       done: false,
     };
-    // The celebration has its own heading in the same spot.
+    // The celebration has its own heading in the same spot, and takes the whole main page.
     this.titleLayer.visible = false;
+    this.sheet.hidden = true;
     this.animateBirth(false);
   }
 
@@ -953,6 +958,7 @@ class DrawingModule {
   renderBody() {
     const s = this.step;
     const body = clear(this.body);
+    this.sheet.hidden = !s.list || !!this.birth;
     if (s.intro) return this.renderIntro(body);
     body.append(h('h2', {}, `${s.id.toUpperCase()}. ${s.title}`), h('p', {}, s.prompt()));
     if (s.id === 'a') this.renderZygote(body);
@@ -1222,7 +1228,8 @@ class DrawingModule {
     return shuffle(makeRng(seed + 11), all).map((text) => ({ text, haploid: text === up || text === low }));
   }
 
-  // Question h: a typed list of genotypes and frequencies.
+  // Question h: a list of gamete genotypes and frequencies, built on the main page. The side panel keeps the prompt
+  // and, once the list is right, the result.
   renderList(body) {
     const { up, low, L } = this.inst;
     const expected = gameteDistribution(allelesAt(this.derived().zygote, L));
@@ -1230,43 +1237,70 @@ class DrawingModule {
     const haploid = (text) => choices.find((c) => c.text === text)?.haploid ?? true;
     const NOT_HAPLOID = 'Gametes are haploid. Under normal meiosis, this is not a proper genotype for a gamete.';
     if (!this.listRows) this.listRows = [{ g: '', f: '' }];
-    const rows = h('div', { class: 'picker' });
+    const result = this.listResult;
+    if (result?.kind === 'good') {
+      body.append(
+        h(
+          'div',
+          { class: 'feedback good' },
+          result.text,
+          h('div', { class: 'row', style: { marginTop: '8px' } }, h('button', { class: 'btn primary', onclick: () => this.goHome() }, 'Return to main page')),
+        ),
+      );
+    } else {
+      body.append(h('div', { class: 'callout' }, h('b', {}, `Build your list on the main page ${window.innerWidth > 860 ? '←' : '↑'}`), 'Add one row per gamete genotype, with its expected frequency, then press Check.'));
+    }
+
+    const sheet = clear(this.sheet);
+    const rows = h('div', { class: 'gl-rows' });
+    const fb = h('div', { class: `feedback ${result?.kind === 'bad' ? 'bad' : ''}`, role: 'status' }, result?.kind === 'bad' ? result.text : '');
+    const edited = () => {
+      if (this.listResult?.kind !== 'bad') return;
+      this.listResult = null;
+      fb.className = 'feedback';
+      fb.textContent = '';
+    };
     const draw = () => {
-      clear(rows);
-      this.listRows.forEach((r, i) => {
-        const sel = h('select', { class: 'choice', 'aria-label': `Genotype ${i + 1}` }, h('option', { value: '' }, 'genotype…'), choices.map((c) => h('option', { value: c.text, selected: r.g === c.text }, c.text)));
-        sel.addEventListener('change', () => {
-          r.g = sel.value;
-          draw();
-        });
-        const freq = h('input', { class: 'choice', type: 'text', value: r.f, placeholder: 'frequency, e.g. 1/4', 'aria-label': `Frequency ${i + 1}` });
-        freq.addEventListener('input', () => (r.f = freq.value));
-        rows.append(
-          h(
-            'div',
-            { class: 'row' },
-            sel,
-            freq,
+      clear(rows).append(
+        h('div', { class: 'gl-head' }, h('span', {}, 'Genotype'), h('span', {}, 'Frequency'), h('span', {})),
+        ...this.listRows.flatMap((r, i) => {
+          const sel = h('select', { class: 'gl-field', 'aria-label': `Gamete genotype ${i + 1}` }, h('option', { value: '' }, 'choose…'), choices.map((c) => h('option', { value: c.text, selected: r.g === c.text }, c.text)));
+          sel.addEventListener('change', () => {
+            r.g = sel.value;
+            edited();
+            draw();
+          });
+          const freq = h('input', { class: 'gl-field', type: 'text', inputmode: 'decimal', value: r.f, placeholder: 'e.g. 1/4', 'aria-label': `Frequency ${i + 1}` });
+          freq.addEventListener('input', () => {
+            r.f = freq.value;
+            edited();
+          });
+          const remove =
             this.listRows.length > 1
               ? h(
                   'button',
                   {
-                    class: 'btn small',
+                    class: 'gl-remove',
+                    type: 'button',
+                    'aria-label': `Remove row ${i + 1}`,
                     onclick: () => {
                       this.listRows.splice(i, 1);
+                      edited();
                       draw();
                     },
                   },
-                  '✕',
+                  '×',
                 )
-              : null,
-          ),
-          r.g && !haploid(r.g) ? h('div', { class: 'feedback bad' }, NOT_HAPLOID) : '',
-        );
-      });
+              : h('span', {});
+          return [
+            h('div', { class: 'gl-row' }, h('span', { class: 'gl-gamete', 'aria-hidden': 'true' }, r.g || '?'), sel, freq, remove),
+            r.g && !haploid(r.g) ? h('div', { class: 'feedback bad gl-note' }, NOT_HAPLOID) : '',
+          ];
+        }),
+      );
     };
     draw();
-    const fb = h('div', { class: 'feedback' });
+
     const checkList = () => {
       const filled = this.listRows.filter((r) => r.g || r.f);
       const problems = [];
@@ -1286,37 +1320,44 @@ class DrawingModule {
         }
         for (const a of expected.keys()) if (!seen.has(a)) problems.push('A gamete genotype is missing from your list.');
       }
-      fb.className = `feedback ${problems.length ? 'bad' : 'good'}`;
-      fb.textContent = problems.length
-        ? problems[0]
-        : `Right: ${[up, low]
-            .filter((a) => expected.has(a))
-            .map((a) => `${a} ${fraction(expected.get(a))}`)
-            .join(', ')}. Segregation sends each homolog to half the gametes.`;
-      if (!problems.length) {
-        this.done.add('h');
-        this.renderStepper();
-        fb.append(h('div', { class: 'row', style: { marginTop: '8px' } }, h('button', { class: 'btn primary', onclick: () => this.goHome() }, 'Return to main page')));
-        this.playBirth([...expected.keys()]);
+      if (problems.length) {
+        this.listResult = { kind: 'bad', text: problems[0] };
+        fb.className = 'feedback bad';
+        fb.textContent = problems[0];
+        return;
       }
+      this.listResult = {
+        kind: 'good',
+        text: `Right: ${[up, low]
+          .filter((a) => expected.has(a))
+          .map((a) => `${a} ${fraction(expected.get(a))}`)
+          .join(', ')}. Segregation sends each homolog to half the gametes.`,
+      };
+      this.done.add('h');
+      this.renderStepper();
+      this.playBirth([...expected.keys()]);
+      this.renderBody();
     };
-    body.append(
+
+    sheet.append(
       rows,
       h(
         'div',
-        { class: 'row' },
+        { class: 'gl-actions' },
         h(
           'button',
           {
-            class: 'btn small',
+            class: 'btn gl-add',
+            type: 'button',
             onclick: () => {
               this.listRows.push({ g: '', f: '' });
+              edited();
               draw();
             },
           },
-          '+ Row',
+          '+ Add a gamete',
         ),
-        h('button', { class: 'btn primary', onclick: checkList }, 'Check'),
+        h('button', { class: 'btn primary', type: 'button', onclick: checkList }, 'Check'),
       ),
       fb,
     );
@@ -1324,6 +1365,7 @@ class DrawingModule {
 
   destroy() {
     this.destroyed = true;
+    this.sheet.remove();
     this.builder.destroy();
     this.scene.destroy({ children: true });
   }
