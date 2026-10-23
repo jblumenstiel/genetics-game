@@ -8,7 +8,7 @@ import { allGenotypes, offspringPhenotypes, offspringGenotypes, logLikelihood, g
 import { genotypeLabel, genotypeKey } from '../../engine/phenotype.js';
 import { Creature } from '../../render/creature.js';
 import { genotypeOptions, IMPOSSIBLE_NOTE } from '../../engine/genotypes.js';
-import { creatureCard, breed, makeParent, LETTERS } from './instance.js';
+import { creatureCard, breed, makeParent, LETTERS, NAMES } from './instance.js';
 import { ratioText } from './breed-step.js';
 import { pick, shuffle, int } from '../../core/rng.js';
 
@@ -209,7 +209,7 @@ export class DetectiveStep {
     const genos = allGenotypes(this.trait);
     const [c0, c1, c2, c3] = PALETTE.hap;
     const [a, b] = [pick(rng, genos), pick(rng, genos)];
-    const names = shuffle(rng, ['Pip', 'Mossy', 'Bramble', 'Tuffet', 'Wobble', 'Juniper', 'Nib', 'Puddle', 'Clover', 'Fennel']);
+    const names = shuffle(rng, NAMES);
     this.setup({
       parents: [makeParent(this.inst.base, a, [c0, c1], names[0]), makeParent(this.inst.base, b, [c2, c3], names[1])],
       litterSize: int(rng, 9, 14),

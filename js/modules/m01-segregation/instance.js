@@ -32,7 +32,7 @@ export function pigmentTrait(L) {
   };
 }
 
-const NAMES = ['Pip', 'Mossy', 'Bramble', 'Tuffet', 'Wobble', 'Juniper', 'Nib', 'Puddle', 'Clover', 'Fennel', 'Burdock', 'Sorrel', 'Quill', 'Tansy'];
+export const NAMES = ['Pip', 'Mossy', 'Bramble', 'Tuffet', 'Wobble', 'Juniper', 'Nib', 'Puddle', 'Clover', 'Fennel', 'Burdock', 'Sorrel', 'Quill', 'Tansy'];
 
 export function makeParent(base, alleles, colors, name) {
   const { trait, karyotype } = base;

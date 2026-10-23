@@ -260,7 +260,7 @@ export class BreedStep {
             h('b', {}, 'Small samples are noisy'),
             'With 10 offspring the counts can stray far from the ratio; with hundreds they settle close. Unit E turns that into a test: is a deviation bigger than chance alone would produce?',
           ),
-          h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: detective ▶'),
+          h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: E. Detective ▶')),
         );
       }
     } else if (total) {

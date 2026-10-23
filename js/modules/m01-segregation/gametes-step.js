@@ -342,7 +342,7 @@ export class GametesStep {
         'div',
         { class: 'row' },
         h('button', { class: 'btn', onclick: () => this.resetMany() }, `Reset Random Gametes from ${name}`),
-        h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Proceed to fertilization ▶'),
+        h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: C. Fertilization ▶'),
       ),
     );
   }

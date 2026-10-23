@@ -147,7 +147,9 @@ export class FertilizationStep {
     [this.mother, this.father].forEach((p, i) => {
       const role = label(i === 0 ? 'Mother: makes eggs' : 'Father: makes sperm', 13, { fill: i === 0 ? PALETTE.clay : PALETTE.dusk, fontWeight: '800' });
       role.anchor.set(0.5, 1);
-      role.position.set(this.parentPos[i].x, top - 4 + 12);
+      // On a narrow stage the label is wider than the margin beside the card, so keep it inside the edges.
+      const half = role.width / 2 + 8;
+      role.position.set(Math.min(w - half, Math.max(half, this.parentPos[i].x)), top - 4 + 12);
       const card = creatureCard(p, { size });
       card.container.position.set(this.parentPos[i].x, this.parentPos[i].y + 14);
       this.layer.addChild(role, card.container);
