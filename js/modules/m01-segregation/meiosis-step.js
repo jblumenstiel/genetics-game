@@ -569,36 +569,35 @@ export class MeiosisStep {
       );
       const k = `${this.key(s)}:flip`;
       if (this.flips && s.flipQ) {
+        // An answered question stays on screen, its answer selected, until the student moves on.
         const q = this.orientationQuestion();
-        if (this.answered.has(k)) body.append(h('p', { class: 'hint' }, `✓ ${q.prompt} ½`));
-        else
-          body.append(
-            question({
-              ...q,
-              onCorrect: () => {
-                this.answered.add(k);
-                setTimeout(() => this.renderPanel(), 900);
-              },
-            }),
-          );
+        body.append(
+          question({
+            ...q,
+            answered: this.answered.has(k),
+            onCorrect: () => {
+              this.answered.add(k);
+              this.renderPanel();
+            },
+          }),
+        );
       }
     }
 
     const q = s.q === 'products' ? this.productsQuestion() : s.q;
     if (q) {
       const k = this.key(s);
-      if (this.answered.has(k)) body.append(h('p', { class: 'hint' }, `✓ ${q.prompt}`));
-      else
-        body.append(
-          question({
-            ...q,
-            onCorrect: () => {
-              this.answered.add(k);
-              if (s.id === 'T2') this.mod.complete('meiosis');
-              setTimeout(() => this.renderPanel(), 900);
-            },
-          }),
-        );
+      body.append(
+        question({
+          ...q,
+          answered: this.answered.has(k),
+          onCorrect: () => {
+            this.answered.add(k);
+            if (s.id === 'T2') this.mod.complete('meiosis');
+            this.renderPanel();
+          },
+        }),
+      );
     }
 
     const nav = h(

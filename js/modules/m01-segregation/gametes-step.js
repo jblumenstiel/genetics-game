@@ -1,5 +1,5 @@
 // Step B: from one meiosis to many gametes. Predict the fraction carrying an allele, draw single random gametes,
-// then draw them in batches until 120 stack up in one bin per allele.
+// then draw them in batches until 200 stack up in one bin per allele.
 
 import { h, clear } from '../../core/dom.js';
 import { PALETTE } from '../../core/palette.js';
@@ -10,7 +10,7 @@ import { label } from '../../render/chromosome.js';
 import { creatureCard, gameteView } from './instance.js';
 import { QuestionSheet, answeredNote, sheetPointer } from './question-sheet.js';
 
-const MAX = 120;
+const MAX = 200;
 const BATCHES = [10, 20, 30];
 const PER_ROW = 12;
 
@@ -50,6 +50,7 @@ export class GametesStep {
   // Animations resolve when the module moves on; nothing may draw into the shared panel after that.
   exit() {
     this.exited = true;
+    this.sheet.moveOn(this.mod.state.seen);
     this.sheet.remove();
   }
 
@@ -108,7 +109,7 @@ export class GametesStep {
     this.drawSingle();
   }
 
-  // One bin per allele. Dots shrink to fit, so all 120 gametes fit in one bin when the parent is homozygous.
+  // One bin per allele. Dots shrink to fit, so all 200 gametes fit in one bin when the parent is homozygous.
   layoutBins(w, hgt) {
     const half = Math.min(80, w * 0.14);
     this.bins = this.trait.alleles.map((a, i) => {
@@ -175,6 +176,8 @@ export class GametesStep {
   }
 
   async pickSingle() {
+    this.mod.state.seen.add('gametes:fraction');
+    this.sheet.hide();
     const tw = this.mod.ctx.tween;
     this.s.singles.push(this.randomGamete());
     this.busy = true;
@@ -263,13 +266,15 @@ export class GametesStep {
         ...q,
         onCorrect: () => {
           this.mod.state.answered.add('gametes:fraction');
-          setTimeout(() => !this.exited && this.renderPanel(), 900);
+          this.renderPanel();
         },
       });
       return;
     }
 
-    this.sheet.hide();
+    // The answered question stays on the main page until the student makes a gamete.
+    if (this.mod.state.seen.has('gametes:fraction')) this.sheet.hide();
+    else this.sheet.show('gametes:fraction', q, { answered: true });
     body.append(answeredNote(q));
     if (this.s.phase === 'single') this.renderSingle(body);
     else this.renderMany(body, p);

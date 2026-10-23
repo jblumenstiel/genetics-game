@@ -165,14 +165,43 @@ export class DetectiveStep {
     this.solved = true;
     const others = top.filter((s) => !(genotypeKey(t, s.a) === genotypeKey(t, a) && genotypeKey(t, s.b) === genotypeKey(t, b)));
     const truth = `${gl(p1.alleles)} × ${gl(p2.alleles)}`;
-    let text = `That explains the litter as well as any hypothesis can. The hidden parents were ${truth}.`;
-    if (others.length) {
-      text += ` These fit equally well: ${others.map((s) => `${gl(s.a)} × ${gl(s.b)}`).join(', ')}. A testcross to a homozygous recessive would tell them apart.`;
+    const possible = this.analysis().scored.filter((s) => s.ll > -Infinity);
+    let text;
+    if (possible.length === 1) {
+      text = `Yes: ${gl(a)} × ${gl(b)} is the only possible pair of parent genotypes. ${this.whyOnly(a, b)}`;
+    } else {
+      text = `That explains the litter as well as any hypothesis can. The hidden parents were ${truth}.`;
+      if (others.length) {
+        text += ` These fit equally well: ${others.map((s) => `${gl(s.a)} × ${gl(s.b)}`).join(', ')}. A testcross to a homozygous recessive would tell them apart.`;
+      }
     }
-    if (this.revealed) text += ' This matches the answer you were shown, so it does not count as completed. Try a new litter.';
+    if (this.revealed) text += ' This matches the answer you were shown, so it does not count as completed. Pick different parents to try one on your own.';
     else this.mod.complete('detective');
     this.message = { kind: 'good', text };
     this.render();
+  }
+
+  // Why the only possible pair is forced, parent by parent: a recessive phenotype fixes a homozygote, and a
+  // dominant-phenotype parent of recessive-phenotype offspring must carry the recessive allele.
+  whyOnly(a, b) {
+    const t = this.trait;
+    const [D, r] = t.alleles.map((x) => x.id);
+    const rr = genotypeLabel(t, [r, r]);
+    const recessive = t.express([r, r]);
+    const recessiveKids = this.counts[recessive.key] ?? 0;
+    const [p1, p2] = this.det.parents;
+    const carrier = (p, g) => p.phenotype.key !== recessive.key && recessiveKids && g.includes(r);
+    const kids = `${recessiveKids} offspring ${recessiveKids === 1 ? 'is' : 'are'} ${recessive.label} (${rr}) and got ${alleleLabel(t, r)} from each parent`;
+    if (carrier(p1, a) && carrier(p2, b)) {
+      return `Both parents are ${p1.phenotype.label}, but ${kids}, so both must be ${genotypeLabel(t, [D, r])}.`;
+    }
+    const reasons = this.det.parents.map((p, i) => {
+      const g = [a, b][i];
+      if (p.phenotype.key === recessive.key) return `${p.name} is ${recessive.label}, so ${p.name} must be ${rr}.`;
+      if (carrier(p, g)) return `${p.name} is ${p.phenotype.label}, but ${kids}, so ${p.name} must be ${genotypeLabel(t, [D, r])}.`;
+      return null;
+    });
+    return reasons.every(Boolean) ? reasons.join(' ') : 'No other pair of genotypes that fits the parents’ phenotypes could produce this litter.';
   }
 
   miss() {
@@ -364,24 +393,31 @@ export class DetectiveStep {
       );
     } else {
       body.append(h('div', { class: 'feedback good' }, this.message.text));
-      if (!this.mod.state.answered.has('detective:conditional')) {
-        body.append(
-          question({
-            ...this.conditionalQuestion(),
-            onCorrect: () => {
-              this.mod.state.answered.add('detective:conditional');
-              setTimeout(() => this.renderPanel(), 1200);
-            },
-          }),
-        );
-      } else if (this.revealed) {
-        body.append(h('div', { class: 'callout' }, h('b', {}, 'Now solve one on your own'), 'Try a new litter, or start a fresh instance with a different creature and trait.'));
-      } else {
-        body.append(
-          h('div', { class: 'callout' }, h('b', {}, 'Module 1 complete'), 'Try a new litter, or start a fresh instance with a different creature and trait.'),
-        );
+      // The conditional question stays on screen, its answer selected, once it is right.
+      const answered = this.mod.state.answered.has('detective:conditional');
+      body.append(
+        question({
+          ...this.conditionalQuestion(),
+          answered,
+          onCorrect: () => {
+            this.mod.state.answered.add('detective:conditional');
+            this.renderPanel();
+          },
+        }),
+      );
+      if (answered && this.revealed) {
+        body.append(h('div', { class: 'callout' }, h('b', {}, 'Now solve one on your own'), 'Pick different parents for a new litter, or return to the main page.'));
+      } else if (answered) {
+        body.append(h('div', { class: 'callout' }, h('b', {}, 'Module 1 complete'), 'Pick different parents for a new litter, or return to the main page.'));
       }
-      body.append(h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => this.newPuzzle() }, 'New litter'), h('button', { class: 'btn primary', onclick: () => this.mod.ctx.newSeed() }, 'New creatures')));
+      body.append(
+        h(
+          'div',
+          { class: 'row' },
+          h('button', { class: 'btn', onclick: () => this.newPuzzle() }, 'Pick different parents'),
+          h('button', { class: 'btn primary', onclick: () => (location.hash = '#/') }, 'Main page'),
+        ),
+      );
     }
   }
 }

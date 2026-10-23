@@ -25,7 +25,7 @@ export function clear(el) {
 
 // A multiple-choice question. Wrong answers explain themselves and can be retried; the first correct answer
 // calls onCorrect. Options: [{ label, correct, feedback }].
-export function question({ prompt, options, onCorrect, onAnswer, explain }) {
+export function question({ prompt, options, onCorrect, onAnswer, explain, answered = false }) {
   let solved = false;
   const feedback = h('div', { class: 'feedback', role: 'status' });
   const buttons = options.map((opt) => {
@@ -49,5 +49,17 @@ export function question({ prompt, options, onCorrect, onAnswer, explain }) {
     });
     return b;
   });
+  // `answered` draws a question the student already got right: the correct choice selected, with its response.
+  if (answered) {
+    solved = true;
+    // As after a live correct answer: the right choice stays lit, the rest are disabled, and clicks do nothing.
+    options.forEach((opt, i) => {
+      buttons[i].disabled = !opt.correct;
+      if (opt.correct) buttons[i].classList.add('right');
+    });
+    const right = options.find((o) => o.correct);
+    feedback.className = 'feedback good';
+    feedback.textContent = right?.feedback || explain || 'Right.';
+  }
   return h('div', { class: 'question' }, h('p', { class: 'prompt' }, prompt), h('div', { class: 'choices' }, buttons), feedback);
 }

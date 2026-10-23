@@ -100,7 +100,7 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
   - It uses one pigment gene with complete dominance only (incomplete and codominance wait for Module 3), and makes
     no mention of crossing over.
   - Its heterozygous bdellbee from A and B becomes the mother in C, and C and D cross two heterozygotes.
-  - B. Gametes makes single random gametes first, then batches of 10, 20 or 30 up to 120.
+  - B. Gametes makes single random gametes first, then batches of 10, 20 or 30 up to 200.
   - Deferred: a "1 gamete from each of many meioses" comparison in B.
 - The roadmap's "Build the cell" thread adds the same eight questions to Modules 2, 5, 9 and 11 with more loci.
 - Exam I covers binomial probability and chi-square early; the statistics modules may move earlier in the roadmap.

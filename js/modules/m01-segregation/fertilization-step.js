@@ -57,6 +57,7 @@ export class FertilizationStep {
   // Animations resolve when the module moves on; nothing may draw into the shared panel after that.
   exit() {
     this.exited = true;
+    this.sheet.moveOn(this.mod.state.seen);
     this.sheet.remove();
   }
 
@@ -564,11 +565,24 @@ export class FertilizationStep {
     if (!this.asking) this.sheet.hide();
   }
 
-  // A question in the sheet on the main page, or once it is answered, its prompt, answer and reason in the panel.
-  ask(body, key, q, then) {
+  // A question in the sheet on the main page. Once it is right, the panel records it, and it stays in the sheet with
+  // its answer selected until the student presses Next question; the last of a set (`last`) stays until the student
+  // moves on to the next part or page. Returns true once the student is past it.
+  ask(body, key, q, then, last = false) {
+    const seen = this.mod.state.seen;
     if (this.answered.has(key)) {
       body.append(answeredNote(q));
-      return true;
+      if (seen.has(key)) return true;
+      this.asking = true;
+      const next = {
+        label: 'Next question ▶',
+        onClick: () => {
+          seen.add(key);
+          this.renderPanel();
+        },
+      };
+      this.sheet.show(key, q, { answered: true, next: last ? null : next });
+      return last;
     }
     this.asking = true;
     this.sheet.show(key, {
@@ -576,7 +590,7 @@ export class FertilizationStep {
       onCorrect: () => {
         this.answered.add(key);
         then?.();
-        setTimeout(() => this.renderPanel(), 1100);
+        this.renderPanel();
       },
     });
     body.append(sheetPointer('Each answer you get right is recorded here.'));
@@ -675,7 +689,7 @@ export class FertilizationStep {
                 ? `There are three zygote genotypes, but ${this.gl([A, a])} can be made two ways: egg ${this.al(A)} + sperm ${this.al(a)}, or egg ${this.al(a)} + sperm ${this.al(A)}. Count those separately.`
                 : 'List the eggs (2 kinds) and the sperm (2 kinds), and pair each egg with each sperm.',
         })),
-      });
+      }, null, true);
     if (done) {
       body.append(
         h('div', { class: 'callout' }, h('b', {}, 'Independent events multiply'), `Each fertilization joins one random egg and one random sperm. Every pairing has probability ½ × ½ = ¼.`),
@@ -685,6 +699,7 @@ export class FertilizationStep {
   }
 
   toGrid() {
+    this.sheet.moveOn(this.mod.state.seen);
     this.s.phase = 'grid';
     this.resize(this.w, this.h);
     this.renderPanel();
@@ -692,6 +707,7 @@ export class FertilizationStep {
   }
 
   toOne() {
+    this.sheet.moveOn(this.mod.state.seen);
     this.s.phase = 'one';
     this.resize(this.w, this.h);
     this.renderPanel();
@@ -769,6 +785,7 @@ export class FertilizationStep {
           ],
         },
         () => this.mod.complete('fertilization'),
+        true,
       );
     if (!done) return;
 

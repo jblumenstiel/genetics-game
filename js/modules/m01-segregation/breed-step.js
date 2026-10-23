@@ -44,6 +44,7 @@ export class BreedStep {
   }
 
   exit() {
+    this.sheet.moveOn(this.mod.state.seen);
     this.sheet.remove();
   }
 
@@ -92,6 +93,8 @@ export class BreedStep {
   }
 
   breedMany(n) {
+    // Breeding is the student's next move, so the answered prediction leaves the main page.
+    this.sheet.moveOn(this.mod.state.seen);
     let last = [];
     for (let i = 0; i < n; i++) {
       const kid = breed(this.inst, this.parents[0], this.parents[1], this.inst.rng);
@@ -205,6 +208,15 @@ export class BreedStep {
     body.append(sheetPointer('Each answer you get right is recorded here.'));
   }
 
+  // A question already got right: recorded in the panel, and still on the main page with its answer selected until
+  // the student moves on.
+  keep(body, key, q) {
+    body.append(answeredNote(q));
+    if (this.mod.state.seen.has(key)) return;
+    this.asking = true;
+    this.sheet.show(key, q, { answered: true });
+  }
+
   renderBody(body) {
     const [p1, p2] = this.parents;
     const answered = this.mod.state.answered;
@@ -221,14 +233,14 @@ export class BreedStep {
     if (!answered.has('breed:ratio')) {
       this.ask(body, 'breed:ratio', ratioQ, () => {
         answered.add('breed:ratio');
-        setTimeout(() => this.renderPanel(), 1000);
+        this.renderPanel();
       });
       return;
     }
 
     const total = this.total();
+    this.keep(body, 'breed:ratio', ratioQ);
     body.append(
-      answeredNote(ratioQ),
       h(
         'div',
         { class: 'row' },
@@ -261,11 +273,11 @@ export class BreedStep {
         this.ask(body, 'breed:genotype', this.genotypeQuestion(), () => {
           answered.add('breed:genotype');
           this.mod.complete('breed');
-          setTimeout(() => this.renderPanel(), 1000);
+          this.renderPanel();
         });
       } else {
+        this.keep(body, 'breed:genotype', this.genotypeQuestion());
         body.append(
-          answeredNote(this.genotypeQuestion()),
           h(
             'div',
             { class: 'callout' },
