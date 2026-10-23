@@ -104,18 +104,22 @@ export function phenotypeClasses(trait) {
   return [...seen.values()];
 }
 
-// A creature with its name, genotype and phenotype written underneath.
+// A creature with its name, genotype and phenotype written underneath. caption: '' leaves the phenotype off.
 export function creatureCard(parent, { size = 100, genotype = parent.label, caption = parent.phenotype.label } = {}) {
   const container = new PIXI.Container();
   const creature = new Creature(parent.features, { size });
   const name = label(parent.name, Math.max(13, size * 0.17), { fontWeight: '800' });
   const geno = label(genotype, Math.max(13, size * 0.16), { fill: PALETTE.sage });
-  const pheno = label(caption, Math.max(12, size * 0.13), { fontWeight: '600', fill: PALETTE.inkSoft });
-  for (const t of [name, geno, pheno]) t.anchor.set(0.5, 0);
+  for (const t of [name, geno]) t.anchor.set(0.5, 0);
   name.y = size * 0.55;
   geno.y = name.y + name.height + 1;
-  pheno.y = geno.y + geno.height;
-  container.addChild(creature, name, geno, pheno);
+  container.addChild(creature, name, geno);
+  if (caption) {
+    const pheno = label(caption, Math.max(12, size * 0.13), { fontWeight: '600', fill: PALETTE.inkSoft });
+    pheno.anchor.set(0.5, 0);
+    pheno.y = geno.y + geno.height;
+    container.addChild(pheno);
+  }
   return {
     container,
     creature,

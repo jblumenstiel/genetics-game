@@ -159,6 +159,7 @@ select.gl-field {
 .stage-sheet .choice:hover:not(:disabled) { border-color: var(--sage); }
 .stage-sheet .choice.right { background: var(--sage-wash); border-color: var(--sage); }
 .stage-sheet .choice.wrong { background: var(--clay-wash); border-color: var(--clay); color: var(--ink-soft); }
+.stage-sheet.wordy .choice { flex: 1 1 100%; font-size: 15px; font-weight: 700; text-align: left; }
 /* Module 1's detective: the parents' genotype choices sit at the bottom of the main page, under the litter. */
 .stage-sheet.at-bottom { top: auto; bottom: 12px; }
 .stage-sheet.at-bottom .gl-actions { align-items: center; margin-top: 12px; }
@@ -175,6 +176,9 @@ select.gl-field {
 @media (max-width: 480px) {
   .stage-sheet.at-bottom { padding: 12px 14px; max-height: 55%; }
   .stage-sheet .choice { min-width: 52px; padding: 8px 10px; }
+  .stage-sheet .question .prompt { font-size: 15px; }
+  .stage-sheet.wordy .choice { font-size: 14px; min-height: 36px; padding: 6px 10px; }
+  .stage-sheet.wordy .choices { gap: 6px; }
 }
 .panel {
   border-left: 1px solid var(--line);

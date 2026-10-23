@@ -1,12 +1,13 @@
 // Step D: predict the offspring ratio, then breed and watch the counts converge on it.
 
-import { h, clear, question } from '../../core/dom.js';
+import { h, clear } from '../../core/dom.js';
 import { PALETTE } from '../../core/palette.js';
 import { offspringPhenotypes, offspringGenotypes, allGenotypes, integerRatio, fractionGlyph } from '../../engine/cross.js';
 import { genotypeLabel, alleleLabel } from '../../engine/phenotype.js';
 import { Creature } from '../../render/creature.js';
 import { label } from '../../render/chromosome.js';
 import { creatureCard, breed, phenotypeClasses } from './instance.js';
+import { QuestionSheet, answeredNote, sheetPointer } from './question-sheet.js';
 
 export function ratioText(dist) {
   const ints = integerRatio(dist.map((d) => d.p));
@@ -36,18 +37,21 @@ export class BreedStep {
     this.layer = new PIXI.Container();
     this.kidLayer = new PIXI.Container();
     container.addChild(this.layer, this.kidLayer);
+    this.sheet = new QuestionSheet(this.mod, () => this.resize(this.w, this.h));
     const { w, h: hgt } = this.mod.size();
     this.resize(w, hgt);
     this.renderPanel();
   }
 
-  exit() {}
+  exit() {
+    this.sheet.remove();
+  }
 
   resize(w, hgt) {
     this.w = w;
     this.h = hgt;
     this.layer.removeChildren().forEach((c) => c.destroy({ children: true }));
-    const size = Math.max(60, Math.min(96, hgt * 0.14));
+    const size = Math.max(60, Math.min(96, (hgt - this.sheet.space()) * 0.14));
     this.parents.forEach((p, i) => {
       const card = creatureCard(p, { size });
       card.container.position.set(w * (0.32 + i * 0.36), size * 0.7);
@@ -61,8 +65,17 @@ export class BreedStep {
     this.layoutKids(false);
   }
 
-  // Up to 24 most recent offspring in a grid.
+  // How many offspring fit in the grid above the question sheet.
+  capacity() {
+    const cols = Math.max(4, Math.floor(this.w / 90));
+    const rows = Math.max(1, Math.floor((this.h - this.sheet.space() - this.gridTop - 10) / Math.min(90, (this.w - 40) / cols)));
+    return cols * rows;
+  }
+
+  // The most recent offspring in a grid, as many as fit.
   layoutKids(animate) {
+    const max = this.capacity();
+    while (this.kids.length > max) this.kids.shift().destroy();
     const cols = Math.max(4, Math.floor(this.w / 90));
     const cell = Math.min(90, (this.w - 40) / cols);
     const size = cell * 0.62;
@@ -85,10 +98,7 @@ export class BreedStep {
       this.counts[kid.phenotype.key]++;
       last.push(kid);
     }
-    const cols = Math.max(4, Math.floor(this.w / 90));
-    const rows = Math.max(1, Math.floor((this.h - this.gridTop - 10) / Math.min(90, (this.w - 40) / cols)));
-    const max = cols * rows;
-    last = last.slice(-max);
+    last = last.slice(-this.capacity());
     for (const k of last) {
       const c = new Creature(k.features, { size: 40, idle: n <= 10 });
       const tag = label(k.label, 12, { fill: PALETTE.sage });
@@ -100,7 +110,6 @@ export class BreedStep {
       this.kids.push(c);
       this.mod.ctx.tween.to(c, { alpha: 1 }, { duration: 300 });
     }
-    while (this.kids.length > max) this.kids.shift().destroy();
     this.layoutKids(false);
     this.renderPanel();
   }
@@ -183,8 +192,20 @@ export class BreedStep {
     };
   }
 
+  // The panel, with the open question (if any) in the sheet on the main page.
   renderPanel() {
-    const body = clear(this.body);
+    this.asking = false;
+    this.renderBody(clear(this.body));
+    if (!this.asking) this.sheet.hide();
+  }
+
+  ask(body, key, q, onCorrect) {
+    this.asking = true;
+    this.sheet.show(key, { ...q, onCorrect });
+    body.append(sheetPointer('Each answer you get right is recorded here.'));
+  }
+
+  renderBody(body) {
     const [p1, p2] = this.parents;
     const answered = this.mod.state.answered;
     body.append(
@@ -196,23 +217,18 @@ export class BreedStep {
       ),
     );
 
+    const ratioQ = { prompt: 'Before breeding: what ratio of offspring phenotypes do you expect?', options: this.ratioOptions() };
     if (!answered.has('breed:ratio')) {
-      body.append(
-        question({
-          prompt: 'Before breeding: what ratio of offspring phenotypes do you expect?',
-          options: this.ratioOptions(),
-          onCorrect: () => {
-            answered.add('breed:ratio');
-            setTimeout(() => this.renderPanel(), 1000);
-          },
-        }),
-      );
+      this.ask(body, 'breed:ratio', ratioQ, () => {
+        answered.add('breed:ratio');
+        setTimeout(() => this.renderPanel(), 1000);
+      });
       return;
     }
 
     const total = this.total();
     body.append(
-      h('p', { class: 'hint' }, `✓ Expected: ${ratioText(this.dist)}`),
+      answeredNote(ratioQ),
       h(
         'div',
         { class: 'row' },
@@ -242,18 +258,14 @@ export class BreedStep {
 
     if (total >= 30) {
       if (!answered.has('breed:genotype')) {
-        body.append(
-          question({
-            ...this.genotypeQuestion(),
-            onCorrect: () => {
-              answered.add('breed:genotype');
-              this.mod.complete('breed');
-              setTimeout(() => this.renderPanel(), 1000);
-            },
-          }),
-        );
+        this.ask(body, 'breed:genotype', this.genotypeQuestion(), () => {
+          answered.add('breed:genotype');
+          this.mod.complete('breed');
+          setTimeout(() => this.renderPanel(), 1000);
+        });
       } else {
         body.append(
+          answeredNote(this.genotypeQuestion()),
           h(
             'div',
             { class: 'callout' },

@@ -4,7 +4,7 @@
 //   2. The same random fertilizations land in a Punnett square: sperm across the top, eggs down the left. Each
 //      cell is one kind of fertilization event, and the square is a summary of their probabilities.
 
-import { h, clear, question } from '../../core/dom.js';
+import { h, clear } from '../../core/dom.js';
 import { PALETTE } from '../../core/palette.js';
 import { meiosis, fertilize } from '../../engine/meiosis.js';
 import { allelesAt } from '../../engine/genome.js';
@@ -13,6 +13,7 @@ import { offspringGenotypes, offspringPhenotypes, fractionGlyph } from '../../en
 import { Creature } from '../../render/creature.js';
 import { label } from '../../render/chromosome.js';
 import { creatureCard } from './instance.js';
+import { QuestionSheet, answeredNote, sheetPointer } from './question-sheet.js';
 
 
 // The first few fertilizations come before the probability questions.
@@ -46,6 +47,7 @@ export class FertilizationStep {
   enter(container, body) {
     this.container = container;
     this.body = body;
+    this.sheet = new QuestionSheet(this.mod, () => this.relayout());
     const { w, h: hgt } = this.mod.size();
     this.resize(w, hgt);
     this.renderPanel();
@@ -55,6 +57,23 @@ export class FertilizationStep {
   // Animations resolve when the module moves on; nothing may draw into the shared panel after that.
   exit() {
     this.exited = true;
+    this.sheet.remove();
+  }
+
+  // The question sheet changed height. A new layout would cut short a running animation, so it waits for the end.
+  relayout() {
+    if (this.busy) this.relayoutLater = true;
+    else this.resize(this.w, this.h);
+  }
+
+  // An animation has finished: unlock the panel, catch up on a layout the sheet asked for, and redraw.
+  settle() {
+    this.busy = false;
+    if (this.relayoutLater) {
+      this.relayoutLater = false;
+      this.resize(this.w, this.h);
+    }
+    this.renderPanel();
   }
 
   // An animation started before the last resize (or exit) has nothing left to move.
@@ -131,8 +150,10 @@ export class FertilizationStep {
     this.layer = new PIXI.Container();
     this.fx = new PIXI.Container();
     this.container.addChild(this.layer, this.fx);
-    if (this.s.phase === 'one') this.layoutOne(w, hgt);
-    else this.layoutGrid(w, hgt);
+    // The picture fits above the question sheet.
+    const room = hgt - this.sheet.space();
+    if (this.s.phase === 'one') this.layoutOne(w, room);
+    else this.layoutGrid(w, room);
   }
 
   // ---- part 1: one egg, one sperm ----
@@ -144,6 +165,7 @@ export class FertilizationStep {
       { x: w * 0.18, y: top + size * 0.55 },
       { x: w * 0.82, y: top + size * 0.55 },
     ];
+    let cardBottom = 0;
     [this.mother, this.father].forEach((p, i) => {
       const role = label(i === 0 ? 'Mother: makes eggs' : 'Father: makes sperm', 13, { fill: i === 0 ? PALETTE.clay : PALETTE.dusk, fontWeight: '800' });
       role.anchor.set(0.5, 1);
@@ -152,20 +174,32 @@ export class FertilizationStep {
       role.position.set(Math.min(w - half, Math.max(half, this.parentPos[i].x)), top - 4 + 12);
       const card = creatureCard(p, { size });
       card.container.position.set(this.parentPos[i].x, this.parentPos[i].y + 14);
+      const b = card.container.getLocalBounds();
+      cardBottom = Math.max(cardBottom, card.container.y + b.y + b.height);
       this.layer.addChild(role, card.container);
     });
     this.r = Math.max(20, Math.min(36, w * 0.04));
-    const midY = Math.min(hgt * 0.5, top + size * 2.2 + this.r * 2);
+    this.kidSize = Math.max(40, Math.min(64, hgt * 0.1));
+    // Three bands from the top: the parents, egg and sperm meeting, then the zygote row. When the question sheet
+    // leaves too little room for that (a phone), egg and sperm meet between the parents and the row sits under them.
+    let midY = Math.min(hgt * 0.5, top + size * 2.2 + this.r * 2);
+    this.rowY = hgt - 24 - this.kidSize * 0.95;
+    if (this.rowY - this.kidSize * 0.62 - 20 < midY + this.r + 8) {
+      midY = this.parentPos[0].y + 14;
+      this.rowY = cardBottom + 24 + this.kidSize * 0.62;
+    }
     this.eggSpot = { x: w * 0.4, y: midY };
     this.spermSpot = { x: w * 0.6, y: midY };
     this.meetSpot = { x: w * 0.5, y: midY };
-    this.kidSize = Math.max(40, Math.min(64, hgt * 0.1));
-    this.rowY = hgt - 24 - this.kidSize * 0.95;
+    // If even that row would fall behind the sheet, it waits until the question closes; the panel lists the zygotes.
+    this.rowShown = this.rowY + this.kidSize * 0.95 <= hgt;
     const kl = label('zygotes so far', 13, { fill: PALETTE.inkSoft });
     kl.anchor.set(0.5, 1);
     kl.position.set(w / 2, this.rowY - this.kidSize * 0.62);
+    kl.visible = this.rowShown;
     this.layer.addChild(kl);
     this.kidLayer = new PIXI.Container();
+    this.kidLayer.visible = this.rowShown;
     this.layer.addChild(this.kidLayer);
     this.drawRow();
     // The guided first fertilization, frozen wherever it has got to.
@@ -286,8 +320,7 @@ export class FertilizationStep {
     this.renderPanel();
     await anim();
     if (this.exited) return;
-    this.busy = false;
-    this.renderPanel();
+    this.settle();
   }
 
   // ---- part 2: the Punnett square ----
@@ -313,7 +346,9 @@ export class FertilizationStep {
 
     // Father above the square, his sperm across the top.
     const size = Math.max(44, s * 0.5);
-    const fCard = creatureCard(this.father, { size });
+    // In a small square the parents' phenotype captions would run into the sperm row; their genotypes stay.
+    const cardOpts = s < 100 ? { size, caption: '' } : { size };
+    const fCard = creatureCard(this.father, cardOpts);
     const fb = fCard.container.getLocalBounds();
     fCard.container.position.set(x0 + s, y0 - G.top + 6 - fb.y);
     add('father', fCard.container);
@@ -325,9 +360,11 @@ export class FertilizationStep {
     const sl = label(`Sperm from ${this.father.name}`, Math.max(12, s * 0.09), { fill: PALETTE.dusk, fontWeight: '800' });
     sl.anchor.set(0, 0.5);
     sl.position.set(x0 + 2 * s + 10, spermY);
+    // No room to the right of the sperm (a phone): use the empty corner left of them, above the eggs.
     if (sl.x + sl.width > w - 4) {
-      sl.anchor.set(0.5, 1);
-      sl.position.set(x0 + s, spermY - s * 0.2);
+      Object.assign(sl.style, { wordWrap: true, wordWrapWidth: G.left - 16, align: 'right' });
+      sl.anchor.set(1, 0.5);
+      sl.position.set(x0 - 12, spermY);
     }
     add('sperm', sl);
     this.spermHeads = this.father.alleles.map((a, j) => {
@@ -340,7 +377,7 @@ export class FertilizationStep {
     });
 
     // Mother to the left, her eggs down the left side.
-    const mCard = creatureCard(this.mother, { size });
+    const mCard = creatureCard(this.mother, cardOpts);
     const mb = mCard.container.getLocalBounds();
     mCard.container.position.set(x0 - G.left + mb.width / 2 + 2, y0 + s - (mb.y + mb.height / 2));
     add('mother', mCard.container);
@@ -444,8 +481,7 @@ export class FertilizationStep {
       if (this.stale(gen)) break;
     }
     if (this.exited) return;
-    this.busy = false;
-    this.renderPanel();
+    this.settle();
   }
 
   // One random fertilization lands in its cell: the egg runs along its row, the sperm down its column.
@@ -522,26 +558,28 @@ export class FertilizationStep {
     if (this.exited) return;
     this.mod.refreshTitle();
     const body = clear(this.body);
+    this.asking = false;
     if (this.s.phase === 'one') this.renderOne(body);
     else this.renderGrid(body);
+    if (!this.asking) this.sheet.hide();
   }
 
-  // A question, or once it is answered, a one-line reminder of it and its answer.
+  // A question in the sheet on the main page, or once it is answered, its prompt, answer and reason in the panel.
   ask(body, key, q, then) {
     if (this.answered.has(key)) {
-      body.append(h('p', { class: 'hint' }, `✓ ${q.prompt} ${q.options.find((o) => o.correct).label}`));
+      body.append(answeredNote(q));
       return true;
     }
-    body.append(
-      question({
-        ...q,
-        onCorrect: () => {
-          this.answered.add(key);
-          then?.();
-          setTimeout(() => this.renderPanel(), 1100);
-        },
-      }),
-    );
+    this.asking = true;
+    this.sheet.show(key, {
+      ...q,
+      onCorrect: () => {
+        this.answered.add(key);
+        then?.();
+        setTimeout(() => this.renderPanel(), 1100);
+      },
+    });
+    body.append(sheetPointer('Each answer you get right is recorded here.'));
     return false;
   }
 
@@ -600,7 +638,7 @@ export class FertilizationStep {
       ),
       h('p', { class: 'hint' }, `${hist.length} fertilization${hist.length === 1 ? '' : 's'} so far.${hist.length < WARMUP ? ` Make at least ${WARMUP}.` : ''}`),
     );
-    if (hist.length < WARMUP || this.busy) return;
+    if (hist.length < WARMUP) return;
 
     const aa = this.gl([a, a]);
     const done =
@@ -641,7 +679,7 @@ export class FertilizationStep {
     if (done) {
       body.append(
         h('div', { class: 'callout' }, h('b', {}, 'Independent events multiply'), `Each fertilization joins one random egg and one random sperm. Every pairing has probability ½ × ½ = ¼.`),
-        h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => this.toGrid() }, 'Organize the outcomes: the Punnett square ▶')),
+        h('div', { class: 'row' }, h('button', { class: 'btn primary', disabled: this.busy, onclick: () => this.toGrid() }, 'Organize the outcomes: the Punnett square ▶')),
       );
     }
   }
@@ -687,7 +725,6 @@ export class FertilizationStep {
       body.append(h('div', { class: 'row' }, h('button', { class: 'btn small', disabled: this.busy, onclick: () => this.toOne() }, '◀ Back to part 1')));
       return;
     }
-    if (this.busy) return;
 
     const het = this.gl([A, a]);
     const done =

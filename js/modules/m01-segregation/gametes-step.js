@@ -1,13 +1,14 @@
 // Step B: from one meiosis to many gametes. Predict the fraction carrying an allele, draw single random gametes,
 // then draw them in batches until 120 stack up in one bin per allele.
 
-import { h, clear, question } from '../../core/dom.js';
+import { h, clear } from '../../core/dom.js';
 import { PALETTE } from '../../core/palette.js';
 import { meiosis } from '../../engine/meiosis.js';
 import { alleleLabel } from '../../engine/phenotype.js';
 import { fractionGlyph } from '../../engine/cross.js';
 import { label } from '../../render/chromosome.js';
 import { creatureCard, gameteView } from './instance.js';
+import { QuestionSheet, answeredNote, sheetPointer } from './question-sheet.js';
 
 const MAX = 120;
 const BATCHES = [10, 20, 30];
@@ -38,9 +39,9 @@ export class GametesStep {
     this.gameteLayer = new PIXI.Container();
     this.dotLayer = new PIXI.Container();
     container.addChild(this.layer, this.gameteLayer, this.dotLayer);
-    // The fraction question sits on the main page as HTML, under the four products.
-    this.sheet = h('div', { class: 'stage-sheet at-bottom', hidden: true });
-    this.mod.ctx.stage.append(this.sheet);
+    // The fraction question sits on the main page, under the four products; nothing else is drawn there yet, so the
+    // picture needs no new layout around it.
+    this.sheet = new QuestionSheet(this.mod, () => {});
     const { w, h: hgt } = this.mod.size();
     this.resize(w, hgt);
     this.renderPanel();
@@ -243,35 +244,33 @@ export class GametesStep {
       h('p', {}, `${this.parent.name} is ${this.parent.label}. Every gamete gets exactly one of the two copies of this gene.`),
     );
 
-    const asking = !this.mod.state.answered.has('gametes:fraction');
-    this.sheet.hidden = !asking;
-    if (asking) {
-      body.append(
-        h('div', { class: 'callout' }, h('b', {}, `Answer on the main page ${window.innerWidth > 860 ? '←' : '↑'}`), 'Predict before making any gametes.'),
-      );
-      clear(this.sheet).append(
-        question({
-          prompt: `What fraction of ${this.parent.name}’s gametes carry ${tl}?`,
-          options: [0, 0.25, 0.5, 0.75, 1].map((v) => ({
-            label: fractionGlyph(v),
-            correct: v === p,
-            feedback:
-              v === p
-                ? `Right. ${why}`
-                : v === 0.25 || v === 0.75
-                  ? 'Each gamete gets one of the two copies, so the answer has to be 0, ½ or 1.'
-                  : `Count the ${tl} copies in ${this.parent.label}.`,
-          })),
-          onCorrect: () => {
-            this.mod.state.answered.add('gametes:fraction');
-            setTimeout(() => !this.exited && this.renderPanel(), 900);
-          },
-        }),
-      );
+    const q = {
+      prompt: `What fraction of ${this.parent.name}’s gametes carry ${tl}?`,
+      options: [0, 0.25, 0.5, 0.75, 1].map((v) => ({
+        label: fractionGlyph(v),
+        correct: v === p,
+        feedback:
+          v === p
+            ? `Right. ${why}`
+            : v === 0.25 || v === 0.75
+              ? 'Each gamete gets one of the two copies, so the answer has to be 0, ½ or 1.'
+              : `Count the ${tl} copies in ${this.parent.label}.`,
+      })),
+    };
+    if (!this.mod.state.answered.has('gametes:fraction')) {
+      body.append(sheetPointer('Predict before making any gametes.'));
+      this.sheet.show('gametes:fraction', {
+        ...q,
+        onCorrect: () => {
+          this.mod.state.answered.add('gametes:fraction');
+          setTimeout(() => !this.exited && this.renderPanel(), 900);
+        },
+      });
       return;
     }
 
-    body.append(h('p', { class: 'hint' }, `✓ ${fractionGlyph(p)} of ${this.parent.name}’s gametes carry ${tl}. ${why}`));
+    this.sheet.hide();
+    body.append(answeredNote(q));
     if (this.s.phase === 'single') this.renderSingle(body);
     else this.renderMany(body, p);
   }
