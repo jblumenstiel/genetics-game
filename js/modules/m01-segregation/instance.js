@@ -16,7 +16,7 @@ const LETTERS = ['A', 'B', 'D', 'G', 'H', 'P', 'R', 'T'];
 
 // One pigment gene: the capital allele makes a working pigment enzyme (dominant), the lowercase allele is broken
 // (recessive). A bdellbee is colored when it has at least one working copy and white when it has none.
-function pigmentTrait(L) {
+export function pigmentTrait(L) {
   const up = L;
   const low = L.toLowerCase();
   return {

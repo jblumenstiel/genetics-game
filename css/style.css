@@ -189,6 +189,8 @@ body[data-view='loading'] .play { display: none; }
 .choice:disabled { cursor: default; }
 .choices.inline { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
 .choices.inline .choice { text-align: center; }
+.choices.wide { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+.choice[aria-pressed='true'] { background: var(--sage-wash); border-color: var(--sage); font-weight: 700; }
 .feedback { margin-top: 10px; font-size: 14px; }
 .feedback:empty { display: none; }
 .feedback.good { color: var(--sage-deep); }
@@ -203,6 +205,10 @@ body[data-view='loading'] .play { display: none; }
 .punnett td { background: #fff; color: var(--ink-soft); }
 .punnett td.filled { background: var(--sage-wash); color: var(--ink); font-weight: 700; }
 .punnett small { display: block; font-weight: 600; color: var(--ink-soft); }
+.arrangements { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 14px; }
+.arrangements th, .arrangements td { border-bottom: 1px solid var(--line); padding: 6px 4px; text-align: left; }
+.arrangements th { font-weight: 800; color: var(--ink-soft); }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; opacity: 0.45; }
 
 .tally { display: grid; gap: 8px; }
 .tally-row { display: grid; grid-template-columns: 110px 1fr 54px; gap: 8px; align-items: center; font-size: 14px; }

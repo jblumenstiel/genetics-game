@@ -87,7 +87,7 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
 
 ## Current state and deferred work
 
-- Module 0 (Build the cell) is in use. Module 1 (One gene, one meiosis) is under construction.
+- Module 0 (Build the cell) is in use. Module 1 (One gene, one meiosis) and Module 2 (Two genes, two chromosomes) are under construction.
 - Crossing over is removed from Module 0's Metaphase I for now. The engine and builder still support it; to bring it
   back, set `crossovers: true` and `minCross` on Question E.
 - Module 1 decisions:
