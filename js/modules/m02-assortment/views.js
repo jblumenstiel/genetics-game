@@ -1,4 +1,4 @@
-// Pixi pieces for Module 2: eggs and sperm labeled with a gamete genotype, drawn as in Module 1.
+// Pixi pieces for Module 4: eggs and sperm labeled with a gamete genotype, drawn as in Module 1.
 
 import { PALETTE } from '../../core/palette.js';
 import { label } from '../../render/chromosome.js';

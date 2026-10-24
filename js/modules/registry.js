@@ -28,11 +28,12 @@ export const UNITS = [
         title: 'One gene, one meiosis',
         blurb: 'Walk a cell through meiosis and mitosis, fertilize gametes into a Punnett square, breed a litter, then solve for hidden parents.',
         exam: true,
-        underConstruction: true,
         load: () => import('./m01-segregation/index.js'),
       },
+      { n: 2, id: 'dominance', title: 'Dominance zoo', blurb: 'Complete, incomplete, codominance, haploinsufficiency, recessive lethals and gamete viability.', exam: true },
+      { n: 3, id: 'complementation', title: 'Complementation', blurb: 'Grow auxotrophs on media and sort mutants into complementation groups.', exam: true },
       {
-        n: 2,
+        n: 4,
         id: 'assortment',
         title: 'Two genes, two chromosomes',
         blurb: 'Independent orientation of two bivalents; the product rule and the 9:3:3:1 dihybrid cross.',
@@ -40,8 +41,6 @@ export const UNITS = [
         underConstruction: true,
         load: () => import('./m02-assortment/index.js'),
       },
-      { n: 3, id: 'dominance', title: 'Dominance zoo', blurb: 'Complete, incomplete, codominance, haploinsufficiency, recessive lethals and gamete viability.', exam: true },
-      { n: 4, id: 'complementation', title: 'Complementation', blurb: 'Grow auxotrophs on media and sort mutants into complementation groups.', exam: true },
     ],
   },
   {

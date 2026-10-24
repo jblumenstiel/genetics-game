@@ -108,22 +108,22 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
 
 ## Current state and deferred work
 
-- Module 0 (Build the cell) is finished and in use. Module 1 (One gene, one meiosis) and Module 2 (Two genes, two chromosomes) are under construction.
+- Module 0 (Build the cell) is finished and in use. Module 1 (One gene, one meiosis) is playable without a flag. Module 4 (Two genes, two chromosomes) is under construction.
 - Crossing over is removed from Module 0's Metaphase I for now. The engine and builder still support it; to bring it
   back, set `crossovers: true` and `minCross` on Question E.
 - Module 1 decisions:
   - It opens with an intro page of objectives and builds from meiosis to the Punnett square.
-  - It uses one pigment gene with complete dominance only (incomplete and codominance wait for Module 3), and makes
+  - It uses one pigment gene with complete dominance only (incomplete and codominance wait for Module 2), and makes
     no mention of crossing over.
   - Its heterozygous bdellbee from A and B becomes the mother in C, and C and D cross two heterozygotes.
   - B. Gametes makes single random gametes first, then batches of 10, 20 or 30 up to 200.
   - Deferred: a "1 gamete from each of many meioses" comparison in B.
-- Module 2 decisions:
-  - Its "Build the cell" step is E, after the four Module 2 steps. Its parents are fixed dihybrids (both heterozygous),
+- Module 4 decisions:
+  - Its "Build the cell" step is E, after the four Module 4 steps. Its parents are fixed dihybrids (both heterozygous),
     so the zygote picker offers the nine possible zygotes plus impossible look-alikes, and the gamete list has four
     gametes at 1/4 each. Its genes are unlinked, so Metaphase I grades zero crossovers.
   - The step shares the builder and grader with Module 0; the builder's tray has one chromosome piece per chromosome,
     numbered beside it, and an allele only lands on a chromosome that carries its gene.
   - Its question flow is copied from Module 0, not factored out yet. Factor it into `js/core/` if a third module needs it.
-- The roadmap's "Build the cell" thread adds the same eight questions to Modules 2, 5, 9 and 11 with more loci.
+- The roadmap's "Build the cell" thread adds the same eight questions to Modules 4, 5, 9 and 11 with more loci.
 - Exam I covers binomial probability and chi-square early; the statistics modules may move earlier in the roadmap.

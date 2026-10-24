@@ -6,7 +6,7 @@ The `Exam` column marks topics that appear on BIOL 360 Exam I (2023, 2024).
 
 Order follows the brain dump: start with one locus, add loci and linkage, then chromosome behavior, fungal
 genetics, statistics, molecular genetics and bacterial genetics. Exam I tests binomial probability and
-chi-square early, so Unit E modules 18 and 19 can be moved up to sit right after Module 2 if that matches
+chi-square early, so Unit E modules 18 and 19 can be moved up to sit right after Module 4 if that matches
 the course calendar better.
 
 ## Build the cell: a thread through every unit
@@ -21,7 +21,7 @@ crossovers needed for a stated gamete, 6. metaphase II, 7. gametes, 8. gamete ge
 | Where | Genetic setup |
 |-------|---------------|
 | Module 0 (built) | One locus, two alleles, no phenotypes |
-| Module 2 | Two loci on different chromosomes |
+| Module 4 | Two loci on different chromosomes |
 | Module 5 | Two linked loci, cis and trans, crossovers required |
 | Module 9 | Two linked loci plus one unlinked (the A B ; c exam question) |
 | Module 11 | Non-disjunction at MI or MII |
@@ -36,10 +36,10 @@ crossovers needed for a stated gamete, 6. metaphase II, 7. gametes, 8. gamete ge
 
 | # | Module | Core interaction | Exam |
 |---|--------|------------------|------|
-| 1 | **One gene, one meiosis** (built, under construction) | Step a cell through meiosis or mitosis, answering chromatid-count checkpoints; flip bivalent orientation at Metaphase I; fertilize gametes to fill a Punnett square; predict then breed 1/10/100 offspring; detective puzzle inferring parent genotypes from a litter; conditional probability (P(SS given spotted)) | chromatids per chromosome; mitosis vs meiosis; Punnett square meaning; selfing ratios; P(WW given round) |
-| 2 | Two genes, two chromosomes | Independent orientation of two bivalents; 9:3:3:1 emerges; product rule for A/a; B/b; C/c selfs | product rule, multi-locus genotype probabilities |
-| 3 | Dominance zoo | Complete, incomplete, codominance, haploinsufficiency, recessive lethals (2:1), gamete viability effects | dominant allele identification, haplosufficiency, reduced-viability gametes |
-| 4 | Complementation | Auxotrophic creatures/fungi on minimal and supplemented media; build complementation groups from a cross grid | media choice, complementation groups, number of genes |
+| 1 | **One gene, one meiosis** (built) | Step a cell through meiosis or mitosis, answering chromatid-count checkpoints; flip bivalent orientation at Metaphase I; fertilize gametes to fill a Punnett square; predict then breed 1/10/100 offspring; detective puzzle inferring parent genotypes from a litter; conditional probability (P(SS given spotted)) | chromatids per chromosome; mitosis vs meiosis; Punnett square meaning; selfing ratios; P(WW given round) |
+| 2 | Dominance zoo | Complete, incomplete, codominance, haploinsufficiency, recessive lethals (2:1), gamete viability effects | dominant allele identification, haplosufficiency, reduced-viability gametes |
+| 3 | Complementation | Auxotrophic creatures/fungi on minimal and supplemented media; build complementation groups from a cross grid | media choice, complementation groups, number of genes |
+| 4 | Two genes, two chromosomes | Independent orientation of two bivalents; 9:3:3:1 emerges; product rule for A/a; B/b; C/c selfs | product rule, multi-locus genotype probabilities |
 
 ## Unit B: Linkage and mapping
 

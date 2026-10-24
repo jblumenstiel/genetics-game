@@ -53,7 +53,7 @@ export function buildInstance(seed) {
   const rng = makeRng(seed);
   const species = pick(rng, Object.values(SPECIES));
   // Complete dominance only: a capital dominant allele and a lowercase recessive one. Other dominance modes
-  // come in Module 3.
+  // come in Module 2.
   const trait = pigmentTrait(pick(rng, LETTERS));
   const [A, a] = trait.alleles.map((x) => x.id);
   const pos = pick(rng, [14, 20, 26, 66, 74, 82]);

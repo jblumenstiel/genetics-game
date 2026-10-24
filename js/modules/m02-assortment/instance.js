@@ -1,4 +1,4 @@
-// Generates one playthrough of Module 2 from a seed: two genes on two different chromosomes, and two parents who are
+// Generates one playthrough of Module 4 from a seed: two genes on two different chromosomes, and two parents who are
 // both heterozygous at both genes (dihybrids). Gametes come from real engine meioses.
 
 import { makeRng, pick, shuffle } from '../../core/rng.js';

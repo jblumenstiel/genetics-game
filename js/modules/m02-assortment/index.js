@@ -1,4 +1,4 @@
-// Module 2: Two genes, two chromosomes.
+// Module 4: Two genes, two chromosomes.
 // Four steps (A to D) share one generated instance: Metaphase I alignments, gametes, the Punnett square, and a litter.
 
 import { h, clear } from '../../core/dom.js';
