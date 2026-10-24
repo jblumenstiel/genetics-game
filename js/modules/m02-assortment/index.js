@@ -2,6 +2,7 @@
 // Four steps (A to D) share one generated instance: Metaphase I alignments, gametes, the Punnett square, and a litter.
 
 import { h, clear } from '../../core/dom.js';
+import { PALETTE } from '../../core/palette.js';
 import { moduleEyebrow, stepLetter } from '../registry.js';
 import { buildInstance, parentCards } from './instance.js';
 import { OrientationStep } from './orientation-step.js';
@@ -16,12 +17,16 @@ class AssortmentModule {
     // answered: questions got right. seen: answered questions the student has moved past (they leave the screen).
     this.state = { answered: new Set(), seen: new Set() };
     this.done = new Set();
+    // stage: the name at the top of the canvas, without the step letter.
     this.steps = [
-      { id: 'orientation', title: 'Orientation', make: () => new OrientationStep(this) },
-      { id: 'gametes', title: 'Gametes', make: () => new GametesStep(this) },
-      { id: 'cross', title: 'Punnett square', ownCanvas: true, make: () => new CrossStep(this) },
-      { id: 'breed', title: 'Breed', make: () => new BreedStep(this) },
+      { id: 'orientation', title: 'Orientation', stage: 'Meiosis: Metaphase I', make: () => new OrientationStep(this) },
+      { id: 'gametes', title: 'Gametes', stage: 'Gametes: from two genes', make: () => new GametesStep(this) },
+      { id: 'cross', title: 'Punnett square', stage: 'Fertilization: the Punnett square', ownCanvas: true, make: () => new CrossStep(this) },
+      { id: 'breed', title: 'Breed', stage: 'Breeding: a litter', make: () => new BreedStep(this) },
     ];
+    this.titleLayer = new PIXI.Container();
+    this.titleH = 0;
+    ctx.root.addChild(this.titleLayer);
     this.buildPanel();
     this.go(0);
   }
@@ -59,7 +64,6 @@ class AssortmentModule {
         'div',
         { class: 'panel-foot' },
         h('span', {}, `Seed ${this.ctx.seed}`),
-        h('button', { class: 'btn small', onclick: () => this.ctx.newSeed() }, 'New creatures'),
       ),
     );
   }
@@ -91,6 +95,7 @@ class AssortmentModule {
     this.index = i;
     this.container = new PIXI.Container();
     this.ctx.root.addChild(this.container);
+    this.refreshTitle();
     if (!this.steps[i].ownCanvas) this.drawParents();
     clear(this.body);
     this.step = this.steps[i].make();
@@ -99,12 +104,33 @@ class AssortmentModule {
     this.ctx.panel.scrollTop = 0;
   }
 
+  // The canvas area below the title, where steps lay out.
+  size() {
+    const { w, h: hgt } = this.ctx.size();
+    return { w, h: hgt - this.titleH };
+  }
+
+  // The step's stage name at the top of the canvas. Its height depends only on the canvas width.
+  refreshTitle() {
+    this.titleLayer.removeChildren().forEach((c) => c.destroy());
+    const { w } = this.ctx.size();
+    const fontSize = w < 480 ? 20 : 24;
+    this.titleH = 12 + Math.ceil(fontSize * 1.3);
+    if (this.container) this.container.y = this.titleH;
+    const t = new PIXI.Text({ text: this.steps[this.index].stage, style: { fontFamily: 'Fraunces, Georgia, serif', fontWeight: '600', fontSize, fill: PALETTE.ink }, resolution: 2 });
+    // A long title shrinks to stay on one line.
+    t.scale.set(Math.min(1, (w - 32) / t.width));
+    t.anchor.set(0.5, 0);
+    t.position.set(w / 2, 12);
+    this.titleLayer.addChild(t);
+  }
+
   // The parents stay on the canvas through the steps that don't draw their own; the layout follows the stage size.
   drawParents() {
     this.parentsLayer?.destroy({ children: true });
     this.parentsLayer = new PIXI.Container();
     this.container.addChild(this.parentsLayer);
-    const { w, h: hgt } = this.ctx.size();
+    const { w, h: hgt } = this.size();
     const size = Math.max(60, Math.min(96, hgt * 0.16));
     parentCards(this.inst, size).forEach((card, i) => {
       card.container.position.set(w * (0.32 + i * 0.36), size * 0.7);
@@ -121,14 +147,17 @@ class AssortmentModule {
     this.renderStepper();
   }
 
-  resize(w, hgt) {
+  resize() {
+    this.refreshTitle();
     if (this.container && !this.steps[this.index].ownCanvas) this.drawParents();
+    const { w, h: hgt } = this.size();
     this.step?.resize?.(w, hgt);
   }
 
   destroy() {
     this.step?.exit();
     this.container?.destroy({ children: true });
+    this.titleLayer.destroy({ children: true });
   }
 }
 

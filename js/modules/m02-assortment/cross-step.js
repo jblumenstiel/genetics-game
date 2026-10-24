@@ -35,7 +35,7 @@ export class CrossStep {
     this.body = body;
     // Questions sit on the main page; the square fits above them and follows the sheet's height.
     this.sheet = new QuestionSheet(this.mod, () => this.resize(this.w, this.h));
-    const { w, h: hgt } = this.mod.ctx.size();
+    const { w, h: hgt } = this.mod.size();
     this.resize(w, hgt);
     this.renderPanel();
   }
@@ -61,7 +61,7 @@ export class CrossStep {
   geometry(w, hgt) {
     const n = this.eggs.length;
     const fit = (left, top) => Math.min(150, (w - 24) / (n + left), (hgt - 16) / (n + top));
-    const side = { compact: false, left: 1.45, top: 1.7 };
+    const side = { compact: false, left: 1.7, top: 1.85 };
     const above = { compact: true, left: 0.6, top: 2.25 };
     const L = fit(side.left, side.top) >= fit(above.left, above.top) ? side : above;
     const s = fit(L.left, L.top);
@@ -82,8 +82,10 @@ export class CrossStep {
 
     // The parents: father above the square, mother to the left (or above-left on a narrow screen).
     const size = Math.max(40, s * 0.5);
+    // In a small square the parents' phenotype captions would run into the gametes; their genotypes stay.
+    const cardOpts = s < 100 ? { size, caption: '' } : { size };
     const place = (parent, role, color, x, y) => {
-      const card = creatureCard(parent, { size });
+      const card = creatureCard(parent, cardOpts);
       const b = card.container.getLocalBounds();
       card.container.position.set(x, y - b.y);
       const t = label(role, roleSize, { fill: color, fontWeight: '800' });
@@ -98,7 +100,7 @@ export class CrossStep {
     if (G.compact) {
       place(this.inst.mother, 'Mother', PALETTE.clay, x0 + s * 0.7, top + 4);
     } else {
-      const card = creatureCard(this.inst.mother, { size });
+      const card = creatureCard(this.inst.mother, cardOpts);
       const b = card.container.getLocalBounds();
       card.container.position.set(x0 - G.left * s + b.width / 2 + 4, y0 + (n * s) / 2 - (b.y + b.height / 2));
       const t = label('Mother', roleSize, { fill: PALETTE.clay, fontWeight: '800' });
