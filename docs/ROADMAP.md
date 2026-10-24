@@ -99,3 +99,9 @@ crossovers needed for a stated gamete, 6. metaphase II, 7. gametes, 8. gamete ge
 | 31 | Selective media | Choose media to select or screen for genotypes |
 | 32 | Transformation | Uptake and recombination of donor DNA |
 | 33 | Transduction | Co-transduction frequency and gene order |
+
+## Later
+
+- A play-through review from several student and instructor viewpoints (a struggling student, an honors student in
+  a hurry, an outside genetics instructor, a usability reviewer), once more modules are built. Read-only, with a
+  ranked report that keeps breaks of `CLAUDE.md` rules apart from differences of taste.
