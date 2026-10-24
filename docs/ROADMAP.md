@@ -107,7 +107,7 @@ modules: no canvas, no side panel, and they don't follow the game's question and
 
 | # | Tool | What it does |
 |---|------|--------------|
-| 1 | **Pedigree Generator** (built) | Pick autosomal recessive or dominant, X-linked recessive or dominant, Y-linked or mitochondrial; it simulates three-generation human pedigrees (`js/engine/pedigree.js`) and shows the first one whose pattern is clear, with genotypes on demand. Mode and seed are in the URL |
+| 1 | **Pedigree Generator** (built) | Pick autosomal recessive or dominant, X-linked recessive or dominant, Y-linked or mitochondrial; it simulates three-generation human pedigrees (`js/engine/pedigree.js`) and shows the first one whose pattern is clear, with genotypes on demand. Mode and seed are in the URL. A standalone copy without the site header is at `/pedigree/` (`pedigree/index.html`): it starts from a new random seed on every load, shows the seed, and takes a seed typed in |
 
 ## Later
 

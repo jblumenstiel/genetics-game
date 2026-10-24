@@ -367,3 +367,10 @@ select.gl-field {
 .ped-actions { margin: 14px 0 6px; gap: 10px; }
 .ped-note { color: var(--ink-soft); font-size: 14px; margin: 6px 0 0; }
 .ped-seed { color: var(--ink-soft); font-size: 12px; margin: 10px 0 0; }
+/* The standalone page's seed: the current one, and a form to use a particular one. */
+.ped-seed-box { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
+.ped-seed-now { margin: 0 0 8px; font-size: 14px; color: var(--ink-soft); }
+.ped-seed-now b { color: var(--ink); }
+.ped-seed-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; font-weight: 700; }
+.ped-seed-form .gl-field { width: 170px; }
+.ped-seed-error { margin: 6px 0 0; font-size: 13px; font-weight: 700; color: #a1563a; }

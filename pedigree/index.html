@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pedigree Generator</title>
+  <meta name="description" content="Generate three-generation human pedigrees for six modes of inheritance, with genotypes on demand.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <main class="tool-page">
+    <h1>Pedigree Generator</h1>
+    <p class="ped-lead">Choose a mode of inheritance to generate a three-generation human pedigree that shows it. Each pedigree is simulated generation by generation and kept only if its pattern is clear.</p>
+    <label class="ped-label" for="ped-mode">Mode of inheritance</label>
+    <select class="gl-field ped-select" id="ped-mode"></select>
+    <div class="ped-out" id="ped-out"></div>
+    <div class="ped-seed-box">
+      <p class="ped-seed-now">Seed <b id="seed-now"></b></p>
+      <form class="ped-seed-form" id="seed-form" novalidate>
+        <label for="seed-input">Specify seed:</label>
+        <input class="gl-field" id="seed-input" type="text" inputmode="numeric" placeholder="e.g. 12345" autocomplete="off">
+        <button class="btn" type="submit">Use seed</button>
+      </form>
+      <p class="ped-seed-error" id="seed-error" role="alert" hidden></p>
+    </div>
+  </main>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
