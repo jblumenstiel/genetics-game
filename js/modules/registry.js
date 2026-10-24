@@ -30,7 +30,7 @@ export const UNITS = [
         exam: true,
         load: () => import('./m01-segregation/index.js'),
       },
-      { n: 2, id: 'dominance', title: 'Dominance zoo', blurb: 'Complete, incomplete, codominance, haploinsufficiency, recessive lethals and gamete viability.', exam: true },
+      { n: 2, id: 'dominance', title: 'Dominance zoo', blurb: 'Complete, incomplete, codominance, haploinsufficiency and recessive lethals.', exam: true },
       { n: 3, id: 'complementation', title: 'Complementation', blurb: 'Grow auxotrophs on media and sort mutants into complementation groups.', exam: true },
       {
         n: 4,
@@ -106,6 +106,23 @@ export const UNITS = [
       { n: 31, id: 'selective-media', title: 'Selective media', blurb: 'Choose media to select or screen genotypes.' },
       { n: 32, id: 'transformation', title: 'Transformation', blurb: 'Donor DNA uptake and recombination.' },
       { n: 33, id: 'transduction', title: 'Transduction', blurb: 'Co-transduction frequency and gene order.' },
+    ],
+  },
+  {
+    // Teaching tools, not part of the game: plain pages with no canvas or side panel (`tool: true`).
+    id: 'tools',
+    title: 'Tools',
+    bare: true,
+    tools: true,
+    modules: [
+      {
+        n: 1,
+        id: 'pedigree-generator',
+        title: 'Pedigree Generator',
+        blurb: 'Generate a three-generation human pedigree for autosomal, X-linked, Y-linked or mitochondrial inheritance, with genotypes on demand.',
+        tool: true,
+        load: () => import('./t01-pedigree-generator/index.js'),
+      },
     ],
   },
 ];

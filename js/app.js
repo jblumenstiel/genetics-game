@@ -27,6 +27,7 @@ const els = {
   stage: document.getElementById('stage'),
   panel: document.getElementById('panel'),
   crumbs: document.getElementById('crumbs'),
+  tool: document.getElementById('tool'),
 };
 
 let current = null;
@@ -65,6 +66,7 @@ async function route() {
   const { parts, params } = parseHash();
   if (parts[0] === 'm' && parts[1]) {
     const entry = findModule(parts[1]);
+    if (entry?.tool) return showTool(entry, params);
     if (entry?.load) return showModule(entry, params);
   }
   showHub();
@@ -128,7 +130,7 @@ function showHub() {
           'div',
           { class: 'unit-head' },
           h('h2', {}, unit.bare ? unit.title : `${unitLabel(unit)}. ${unit.title}`),
-          h('span', {}, `${unit.modules.length} module${unit.modules.length === 1 ? '' : 's'}`),
+          h('span', {}, `${unit.modules.length} ${unit.tools ? 'tool' : 'module'}${unit.modules.length === 1 ? '' : 's'}`),
         ),
         h(
           'div',
@@ -137,14 +139,14 @@ function showHub() {
             h(
               'article',
               { class: `card ${m.load ? 'ready' : 'planned'}` },
-              h('div', { class: 'num' }, `MODULE ${m.n}`),
+              h('div', { class: 'num' }, `${unit.tools ? 'TOOL' : 'MODULE'} ${m.n}`),
               h('h3', {}, m.title),
               h('p', {}, m.blurb),
               h(
                 'div',
                 { class: 'card-foot' },
                 h('span', { class: 'tags' }, m.exam ? h('span', { class: 'tag' }, 'Exam I topic') : null, m.underConstruction ? h('span', { class: 'tag construction' }, 'Under construction') : null),
-                m.load ? h('a', { class: 'btn primary small', href: `#/m/${m.id}` }, 'Play') : h('span', { class: 'tag planned' }, 'Planned'),
+                m.load ? h('a', { class: 'btn primary small', href: `#/m/${m.id}` }, m.tool ? 'Open' : 'Play') : h('span', { class: 'tag planned' }, 'Planned'),
               ),
             ),
           ),
@@ -204,6 +206,20 @@ async function showModule(entry, params) {
       clear(els.panel);
     },
   };
+}
+
+// Tools: plain HTML pages, without the canvas or the side panel. They read their own URL parameters.
+
+async function showTool(entry, params) {
+  document.body.dataset.view = 'tool';
+  document.title = `${entry.title} · Bdellbee Genetics`;
+  clear(els.crumbs).append(h('a', { href: '#/' }, 'All modules'), h('span', {}, '›'), h('span', { class: 'crumb-unit' }, entry.unit.title), h('span', { class: 'crumb-unit' }, '›'), h('span', {}, `Tool ${entry.n}`));
+  clear(els.tool);
+  const token = routeToken;
+  const tool = (await entry.load()).default;
+  if (token !== routeToken) return;
+  const instance = tool.mount({ root: els.tool, params, entry });
+  current = { destroy: () => instance.destroy?.() };
 }
 
 window.addEventListener('hashchange', route);

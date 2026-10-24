@@ -37,7 +37,7 @@ crossovers needed for a stated gamete, 6. metaphase II, 7. gametes, 8. gamete ge
 | # | Module | Core interaction | Exam |
 |---|--------|------------------|------|
 | 1 | **One gene, one meiosis** (built) | Step a cell through meiosis or mitosis, answering chromatid-count checkpoints; flip bivalent orientation at Metaphase I; fertilize gametes to fill a Punnett square; predict then breed 1/10/100 offspring; detective puzzle inferring parent genotypes from a litter; conditional probability (P(SS given spotted)) | chromatids per chromosome; mitosis vs meiosis; Punnett square meaning; selfing ratios; P(WW given round) |
-| 2 | Dominance zoo | Complete, incomplete, codominance, haploinsufficiency, recessive lethals (2:1), gamete viability effects | dominant allele identification, haplosufficiency, reduced-viability gametes |
+| 2 | Dominance zoo | Complete, incomplete, codominance, haploinsufficiency, recessive lethals (2:1). Show that codominance and incomplete dominance depend on how phenotypes are defined: the same genotypes can read as complete dominance, incomplete dominance or codominance depending on the phenotype classes chosen | dominant allele identification, haplosufficiency, what counts as a phenotype |
 | 3 | Complementation | Auxotrophic creatures/fungi on minimal and supplemented media; build complementation groups from a cross grid | media choice, complementation groups, number of genes |
 | 4 | Two genes, two chromosomes | Independent orientation of two bivalents; 9:3:3:1 emerges; product rule for A/a; B/b; C/c selfs | product rule, multi-locus genotype probabilities |
 
@@ -99,6 +99,15 @@ crossovers needed for a stated gamete, 6. metaphase II, 7. gametes, 8. gamete ge
 | 31 | Selective media | Choose media to select or screen for genotypes |
 | 32 | Transformation | Uptake and recombination of donor DNA |
 | 33 | Transduction | Co-transduction frequency and gene order |
+
+## Tools
+
+Teaching tools listed after the units on the hub. They are plain HTML pages (`tool: true` in the registry), not game
+modules: no canvas, no side panel, and they don't follow the game's question and feedback conventions.
+
+| # | Tool | What it does |
+|---|------|--------------|
+| 1 | **Pedigree Generator** (built) | Pick autosomal recessive or dominant, X-linked recessive or dominant, Y-linked or mitochondrial; it simulates three-generation human pedigrees (`js/engine/pedigree.js`) and shows the first one whose pattern is clear, with genotypes on demand. Mode and seed are in the URL |
 
 ## Later
 
