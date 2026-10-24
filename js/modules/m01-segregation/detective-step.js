@@ -41,6 +41,8 @@ export class DetectiveStep {
     // Wrong checks so far; "Show me" appears after two. A shown answer does not count as completed.
     this.attempts = 0;
     this.revealed = false;
+    // Once right, the result stays in the sheet with the parents' choices until the student presses Next question.
+    this.resultSeen = false;
   }
 
   title() {
@@ -302,7 +304,7 @@ export class DetectiveStep {
   // genotypes, with an impossible pick explained under its row. After: the closing question, and once it is right,
   // the panel's two ways on under it.
   renderSheet() {
-    if (this.solved) {
+    if (this.solved && this.resultSeen) {
       const key = 'detective:conditional';
       const onCorrect = () => {
         this.mod.state.answered.add(key);
@@ -314,8 +316,13 @@ export class DetectiveStep {
       ];
       return this.sheet.show(key, { ...this.conditionalQuestion(), onCorrect }, { answered: this.mod.state.answered.has(key), next });
     }
+    const done = this.solved;
     const bad = this.message?.kind === 'bad';
     const ready = this.choice.every((c) => c?.possible);
+    const next = () => {
+      this.resultSeen = true;
+      this.render();
+    };
     this.sheet.showForm(
       h(
         'div',
@@ -323,7 +330,7 @@ export class DetectiveStep {
         this.det.parents.flatMap((p, i) => {
           const sel = h(
             'select',
-            { class: 'gl-field', 'aria-label': `${p.name}’s genotype` },
+            { class: 'gl-field', 'aria-label': `${p.name}’s genotype`, disabled: done },
             h('option', { value: '' }, 'choose…'),
             this.options.map((o, k) => h('option', { value: String(k), selected: this.choice[i] === o }, o.text)),
           );
@@ -339,18 +346,21 @@ export class DetectiveStep {
           ];
         }),
       ),
+      done
+        ? ''
+        : h(
+            'div',
+            { class: 'gl-actions' },
+            h('span', { class: 'hint' }, this.choice.some((c) => c && !c.possible) ? 'Choose a possible genotype for each parent.' : 'Choose a genotype for each parent.'),
+            h('button', { class: 'btn primary', type: 'button', disabled: !ready, onclick: () => this.check() }, 'Check'),
+          ),
       h(
         'div',
-        { class: 'gl-actions' },
-        h('span', { class: 'hint' }, this.choice.some((c) => c && !c.possible) ? 'Choose a possible genotype for each parent.' : 'Choose a genotype for each parent.'),
-        h('button', { class: 'btn primary', type: 'button', disabled: !ready, onclick: () => this.check() }, 'Check'),
-      ),
-      h(
-        'div',
-        { class: `feedback${bad ? ' bad' : ''}`, role: 'status' },
-        bad ? this.message.text : '',
+        { class: `feedback${this.message ? ` ${this.message.kind}` : ''}`, role: 'status' },
+        this.message?.text ?? '',
         bad && !this.message.shown && this.attempts >= 2 ? [' ', h('button', { class: 'btn small', type: 'button', onclick: () => this.showAnswer() }, 'Show me')] : '',
       ),
+      done ? h('div', { class: 'row sheet-next' }, h('button', { class: 'btn primary', type: 'button', onclick: next }, 'Next question ▶')) : '',
     );
   }
 
@@ -386,9 +396,11 @@ export class DetectiveStep {
         ),
       );
     } else {
-      body.append(h('div', { class: 'feedback good' }, this.message.text));
+      // The panel records the result; the feedback itself is in the sheet.
+      const [a, b] = this.choice.map((c) => genotypeLabel(this.trait, c.alleles));
+      body.append(h('div', { class: 'answered' }, h('p', { class: 'hint' }, `✓ ${p1.name} and ${p2.name}: `, h('b', {}, `${a} × ${b}`)), h('p', { class: 'hint' }, this.message.text)));
       const answered = this.mod.state.answered.has('detective:conditional');
-      body.append(answered ? answeredNote(this.conditionalQuestion()) : sheetPointer('One last question about this cross.'));
+      if (this.resultSeen) body.append(answered ? answeredNote(this.conditionalQuestion()) : sheetPointer('One last question about this cross.'));
       if (answered && this.revealed) {
         body.append(h('div', { class: 'callout' }, h('b', {}, 'Now solve one on your own'), 'Pick different parents for a new litter, or return to the main page.'));
       } else if (answered) {

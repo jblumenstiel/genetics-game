@@ -87,6 +87,7 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
   in a column beside the picture on wide windows (1150px and up), over the bottom of the canvas on medium ones, and
   under the canvas on phones. The picture keeps as much room as it can, and the panel records each right answer with
   its reason.
+- Feedback, right or wrong, appears in the sheet with its question; the side panel only records right answers.
 - A right answer stays on screen, selected with its response, until the student moves on (next question, next action
   or next page). Don't swap the picker for a one-line summary.
 - Under a right answer, the sheet repeats the panel's way on: "Next question ▶" between questions, and after the last
