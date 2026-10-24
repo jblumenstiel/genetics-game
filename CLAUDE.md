@@ -19,12 +19,13 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
   or two. After a push, confirm the live site serves the new files.
 - Remind the instructor to hard refresh (Cmd+Shift+R) when checking the live site.
 - Record decisions in the repo (this file or the roadmap), not only in conversation.
-- A convention settled for one module is recorded here and applied to every module in the same change. Interface
-  pieces used by several modules live in `js/core/`.
 - **Suggest additions to this file.** When the instructor settles something that should hold beyond the current
-  task, offer in one line to add it here: a new feedback or teaching rule, a correction to how something is
-  drawn or worded, a feature deferred for later, or a change to the workflow. Add it only after they agree, and
-  keep the wording short. Don't suggest it for one-off fixes.
+  task, offer in one line to add it here: a convention for every module, a new feedback or teaching rule, a
+  correction to how something is drawn or worded, a feature deferred for later, or a change to the workflow. Offer
+  at a natural stopping point, such as a commit, rather than after each change. For a convention, also offer to
+  apply it to every module now, or to note it in the roadmap for later. Add it only after they agree, and keep the
+  wording short. Don't suggest it for one-off fixes.
+- Interface pieces used by several modules live in `js/core/`.
 
 ## Code conventions
 
