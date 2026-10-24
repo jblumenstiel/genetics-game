@@ -374,3 +374,27 @@ select.gl-field {
 .ped-seed-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; font-weight: 700; }
 .ped-seed-form .gl-field { width: 170px; }
 .ped-seed-error { margin: 6px 0 0; font-size: 13px; font-weight: 700; color: #a1563a; }
+
+/* Module 2: the list of slides in a step, the mechanisms table, and the reflection box. */
+.page-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 4px; }
+.page-list button {
+  width: 100%; text-align: left; font: inherit; font-size: 14px; font-weight: 700; color: var(--ink);
+  background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; cursor: pointer;
+}
+.page-list button:hover { border-color: var(--ink-soft); }
+.page-list button.current { background: var(--ink); border-color: var(--ink); color: #fff; }
+.page-list button.done::before { content: '✓ '; color: var(--sage); }
+.mech-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mech-table th, .mech-table td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.mech-table th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); }
+.reflect-box {
+  display: block; width: 100%; min-height: 84px; resize: vertical; font: inherit; font-size: 15px;
+  padding: 8px 10px; border: 2px solid #c9b89b; border-radius: 12px; background: #fff; color: var(--ink);
+}
+.reflect-box:focus { outline: none; border-color: var(--sage); box-shadow: 0 0 0 3px var(--sage-wash); }
+.stage-sheet .model-answer { margin-top: 10px; line-height: 1.45; }
+.stage-sheet .prompt.framing { margin: 12px 0 0; }
+/* The slides' Back and Next bar keeps the page count and the buttons on one line, even on a phone. */
+.slide-bar .feedback { flex: 1 1 50px; }
+.slide-bar .row { flex-wrap: nowrap; }
+@media (max-width: 480px) { .slide-bar .row { flex-wrap: nowrap; } .slide-bar .btn { padding-left: 12px; padding-right: 12px; } }

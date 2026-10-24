@@ -108,7 +108,7 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
 
 ## Current state and deferred work
 
-- Module 0 (Build the cell) is finished and in use. Module 1 (One gene, one meiosis) is playable without a flag. Module 4 (Two genes, two chromosomes) is under construction.
+- Module 0 (Build the cell) is finished and in use. Module 1 (One gene, one meiosis) is playable without a flag. Module 2 (Dominance zoo) and Module 4 (Two genes, two chromosomes) are under construction; Module 2's outline is in the roadmap.
 - Crossing over is removed from Module 0's Metaphase I for now. The engine and builder still support it; to bring it
   back, set `crossovers: true` and `minCross` on Question E.
 - Module 1 decisions:

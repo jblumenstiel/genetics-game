@@ -37,9 +37,31 @@ crossovers needed for a stated gamete, 6. metaphase II, 7. gametes, 8. gamete ge
 | # | Module | Core interaction | Exam |
 |---|--------|------------------|------|
 | 1 | **One gene, one meiosis** (built) | Step a cell through meiosis or mitosis, answering chromatid-count checkpoints; flip bivalent orientation at Metaphase I; fertilize gametes to fill a Punnett square; predict then breed 1/10/100 offspring; detective puzzle inferring parent genotypes from a litter; conditional probability (P(SS given spotted)) | chromatids per chromosome; mitosis vs meiosis; Punnett square meaning; selfing ratios; P(WW given round) |
-| 2 | Dominance zoo | Complete, incomplete, codominance, haploinsufficiency, recessive lethals (2:1). Show that codominance and incomplete dominance depend on how phenotypes are defined: the same genotypes can read as complete dominance, incomplete dominance or codominance depending on the phenotype classes chosen | dominant allele identification, haplosufficiency, what counts as a phenotype |
+| 2 | Dominance zoo (built, under construction) | Learning slides, then problems, then open reflection; no cell building. See the outline below | dominant allele identification, haplosufficiency, what counts as a phenotype |
 | 3 | Complementation | Auxotrophic creatures/fungi on minimal and supplemented media; build complementation groups from a cross grid | media choice, complementation groups, number of genes |
 | 4 | Two genes, two chromosomes | Independent orientation of two bivalents; 9:3:3:1 emerges; product rule for A/a; B/b; C/c selfs | product rule, multi-locus genotype probabilities |
+
+### Module 2 outline: Dominance zoo
+
+Learning slides first, then problems, then open reflection. No cell building, and no gamete viability.
+
+- **A. Alleles, genotypes and phenotypes.** A statement to click: dominance describes how the two alleles in a
+  genotype work together to produce a phenotype. Then "Which of the following is a phenotype?" (three genotypes and
+  one phenotype, drawn from a menu) and "Which of the following is a genotype?" (three phenotypes and one genotype).
+  It ends by asking how alleles come together to make genotypes, and how genotypes make phenotypes.
+- **B. Terminology 1**, one page per term, each with a bdellbee example and its genotypes: dominant allele,
+  recessive allele, incomplete dominance, codominance, recessive lethal, dominant lethal.
+- **C. Terminology 2: Mechanisms of dominance**, one page each with bdellbees and a mechanism picture:
+  haplosufficiency (why loss of function is usually recessive), haploinsufficiency (when it is dominant), dosage and
+  incomplete dominance, dominant negative, gain of function, codominance (both alleles make a working product), and
+  a summary with the deletion test (compare a deletion heterozygote with the allele heterozygote). The two
+  haplo pages share a dosage picture with a threshold line the student drags across 50%.
+- **D. Which kind of allele?** Problems, generated from the seed: which allele is dominant (Exam I 2024 Q1),
+  classifying an allele as recessive, dominant, dominant negative, recessive lethal or dominant lethal from bdellbee
+  genotypes that include a deletion heterozygote, the 2 : 1 ratio among survivors of a recessive lethal cross, and the
+  haplosufficiency sentence (Exam I 2023 Q3). No codominance in the problems.
+- **E. Reflections**, open and ungraded: the student writes, then can show a model answer. One gene judged by eye,
+  by pigment amount and on a protein gel; sickle cell; ABO; and phenotype as a human construct.
 
 ## Unit B: Linkage and mapping
 
