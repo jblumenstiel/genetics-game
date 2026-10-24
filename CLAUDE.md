@@ -91,6 +91,8 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
   or next page). Don't swap the picker for a one-line summary.
 - Under a right answer, the sheet repeats the panel's way on: "Next question ▶" between questions, and after the last
   question of a section the same button the panel shows ("Continue: D. Breed ▶").
+- The question sheet holds questions only. A Check that grades work on the canvas sits with the canvas (Module 0's
+  build bar along the bottom of the canvas), not in the sheet; a Check for choices made in the sheet stays there.
 - Metaphase arrangement is chosen on the canvas (bar above the cell, or dropping a chromosome on the plate):
   centromeres single file on the plate, or homologs paired across it.
 - Animations (the how-to demo, anaphase, egg and sperm fusion, the closing "A new bdellbee is born!") lock input

@@ -102,13 +102,21 @@ class DrawingModule {
     // Question H's gamete list sits on the main page as HTML, under the canvas title.
     this.sheet = h('div', { class: 'stage-sheet', hidden: true });
     ctx.stage.append(this.sheet);
-    // Questions A to G: Question A's genotype choices, then Check, the feedback and the way on, at the bottom of the
-    // main page. The builder lays out above it; a new layout waits while the builder animates (anaphase, fusion),
-    // since laying out rebuilds its pieces.
-    this.qsheet = new QuestionSheet(this, () => {
+    // Question A's genotype choices are a question, so they go in the question sheet. Check, its feedback and the way
+    // on grade the cell built on the canvas, so they sit with the canvas, in the build bar along its bottom. The
+    // builder lays out above both; a new layout waits while the builder animates (anaphase, fusion), since laying out
+    // rebuilds its pieces.
+    const relayout = () => {
       if (this.builder.locked) this.layoutLater = true;
       else this.layout();
-    });
+    };
+    this.qsheet = new QuestionSheet(this, relayout);
+    this.buildBar = h('div', { class: 'build-bar', hidden: true });
+    ctx.stage.append(this.buildBar);
+    this.fitBar = () => {
+      const space = this.barSpace();
+      if (space !== this.barLaidOut) relayout();
+    };
 
     this.buildPanel();
     this.go(0);
@@ -773,7 +781,10 @@ class DrawingModule {
     const titleH = this.drawTitle(w);
     this.nucleiBar.y = titleH;
     const top = titleH + this.drawNucleiBar(w);
-    const rect = { x: 12, y: 28 + top, w: w - 24, h: hgt - 36 - top - this.qsheet.space() };
+    // The build bar sits along the bottom; a question sheet over the canvas sits just above it.
+    this.barLaidOut = this.barSpace();
+    this.ctx.stage.style.setProperty('--sheet-lift', `${this.barLaidOut}px`);
+    const rect = { x: 12, y: 28 + top, w: w - 24, h: hgt - 36 - top - this.barLaidOut - this.qsheet.space() };
     this.builder.setRect(rect);
     this.lockNote.removeChildren().forEach((c) => c.destroy());
     const where = this.qsheet.mode === 'side' ? 'on the right →' : 'below ↓';
@@ -968,11 +979,13 @@ class DrawingModule {
     const body = clear(this.body);
     this.sheet.hidden = !s.list || !!this.birth;
     this.resultEl = null;
+    // The build bar shows again below once there is a cell to check.
+    this.buildBar.hidden = true;
     if (s.intro) return this.renderIntro(body);
     body.append(h('h2', {}, `${s.id.toUpperCase()}. ${s.title}`), h('p', {}, s.prompt()));
     if (s.id === 'a') {
       body.append(
-        h('div', { class: 'callout' }, h('b', {}, `Choose the parents and a zygote on the main page ${window.innerWidth > 860 ? '←' : '↑'}`), 'Then build its egg and sperm, and press Check there.'),
+        h('div', { class: 'callout' }, h('b', {}, `Choose the parents and a zygote on the main page ${window.innerWidth > 860 ? '←' : '↑'}`), 'Then build its egg and sperm on the canvas, and press Check under it.'),
       );
     } else this.renderFollow(body);
     if (!this.nucleiShown(s)) body.append(h('div', { class: 'callout' }, h('b', {}, 'First, answer the question above the cell'), s.nucleiQuestion.text));
@@ -981,12 +994,13 @@ class DrawingModule {
     this.tools = h('div', { class: 'tools' });
     body.append(this.arrangeEl, this.tools);
     this.renderArrangement();
-    if (s.id !== 'a') body.append(h('div', { class: 'callout' }, h('b', {}, `Build it on the main page ${window.innerWidth > 860 ? '←' : '↑'}`), 'Then press Check there.'));
+    if (s.id !== 'a') body.append(h('div', { class: 'callout' }, h('b', {}, `Build it on the main page ${window.innerWidth > 860 ? '←' : '↑'}`), 'Then press Check under the cell.'));
     this.resultEl = h('div');
     body.append(this.resultEl);
     this.renderTools();
-    // Until the count above the cell is answered there is nothing to build, so the sheet waits.
+    // Until the count above the cell is answered there is nothing to build, so the build bar waits.
     if (this.nucleiShown(s)) this.renderFeedback();
+    else this.fitBar();
   }
 
   // Metaphase questions: what the two arrangements mean. The choice itself is made on the canvas, in the bar above
@@ -1195,6 +1209,14 @@ class DrawingModule {
   // The main page's sheet for Questions A to G: Question A's genotype choices, then the feedback and the buttons
   // (Check, Show me after two wrong checks, Watch anaphase again, and the way on once right). The panel keeps a
   // record of a right answer.
+  // Canvas height the build bar takes, with its margin.
+  barSpace() {
+    return this.buildBar.hidden ? 0 : this.buildBar.offsetHeight + 12;
+  }
+
+  // The build bar for Questions A to G, along the bottom of the canvas: the feedback on the cell, and Check, Show me
+  // after two wrong checks, Watch anaphase again, and the way on once right. Question A's genotype choices go in the
+  // question sheet. The panel keeps a record of a right answer.
   renderFeedback() {
     if (!this.resultEl) return;
     const s = this.step;
@@ -1202,18 +1224,20 @@ class DrawingModule {
     const next = this.index < this.steps.length - 1 ? `Next: Question ${this.steps[this.index + 1].id.toUpperCase()} ▶` : null;
     const onward = (fb?.kind === 'good' || fb?.shown) && next;
     const button = (text, onclick, primary = false) => h('button', { class: primary ? 'btn primary' : 'btn', type: 'button', onclick }, text);
-    this.qsheet.showForm(
-      ...(s.id === 'a' ? this.zygoteForm() : [h('p', { class: 'prompt' }, 'Build the cell, then press Check.')]),
-      h('div', { class: `feedback${fb ? ` ${fb.kind}` : ''}`, role: 'status' }, fb?.text ?? ''),
+    if (s.id === 'a') this.qsheet.showForm(...this.zygoteForm());
+    clear(this.buildBar).append(
+      h('div', { class: `feedback ${fb ? fb.kind : 'hint'}`, role: 'status' }, fb?.text ?? 'Build the cell above, then press Check.'),
       h(
         'div',
-        { class: 'row sheet-next' },
+        { class: 'row' },
         fb?.kind === 'bad' && !fb.shown && (this.attempts[s.id] ?? 0) >= 2 && s.id !== 'a' ? button('Show me', () => this.showAnswer()) : '',
         fb?.kind === 'good' && s.anaphase ? button('▶ Watch anaphase again', () => this.playAnaphase()) : '',
         button('Check', () => this.check(), !onward),
         onward ? button(next, () => this.go(this.index + 1), true) : '',
       ),
     );
+    this.buildBar.hidden = false;
+    this.fitBar();
     clear(this.resultEl).append(fb?.kind === 'good' ? h('p', { class: 'hint' }, `✓ ${fb.text}`) : '');
   }
 
@@ -1376,6 +1400,8 @@ class DrawingModule {
     this.destroyed = true;
     this.sheet.remove();
     this.qsheet.remove();
+    this.buildBar.remove();
+    this.ctx.stage.style.removeProperty('--sheet-lift');
     this.builder.destroy();
     this.scene.destroy({ children: true });
   }
