@@ -19,6 +19,8 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
   or two. After a push, confirm the live site serves the new files.
 - Remind the instructor to hard refresh (Cmd+Shift+R) when checking the live site.
 - Record decisions in the repo (this file or the roadmap), not only in conversation.
+- A convention settled for one module is recorded here and applied to every module in the same change. Interface
+  pieces used by several modules live in `js/core/`.
 - **Suggest additions to this file.** When the instructor settles something that should hold beyond the current
   task, offer in one line to add it here: a new feedback or teaching rule, a correction to how something is
   drawn or worded, a feature deferred for later, or a change to the workflow. Add it only after they agree, and
@@ -84,6 +86,8 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
   one at a time. The picture lays out above the sheet, and the panel records each right answer with its reason.
 - A right answer stays on screen, selected with its response, until the student moves on (next question, next action
   or next page). Don't swap the picker for a one-line summary.
+- Under a right answer, the sheet repeats the panel's way on: "Next question ▶" between questions, and after the last
+  question of a section the same button the panel shows ("Continue: D. Breed ▶").
 - Metaphase arrangement is chosen on the canvas (bar above the cell, or dropping a chromosome on the plate):
   centromeres single file on the plate, or homologs paired across it.
 - Animations (the how-to demo, anaphase, egg and sperm fusion, the closing "A new bdellbee is born!") lock input
