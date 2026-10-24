@@ -118,5 +118,12 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
   - Its heterozygous bdellbee from A and B becomes the mother in C, and C and D cross two heterozygotes.
   - B. Gametes makes single random gametes first, then batches of 10, 20 or 30 up to 200.
   - Deferred: a "1 gamete from each of many meioses" comparison in B.
+- Module 2 decisions:
+  - Its "Build the cell" step is E, after the four Module 2 steps. Its parents are fixed dihybrids (both heterozygous),
+    so the zygote picker offers the nine possible zygotes plus impossible look-alikes, and the gamete list has four
+    gametes at 1/4 each. Its genes are unlinked, so Metaphase I grades zero crossovers.
+  - The step shares the builder and grader with Module 0; the builder's tray has one chromosome piece per chromosome,
+    numbered beside it, and an allele only lands on a chromosome that carries its gene.
+  - Its question flow is copied from Module 0, not factored out yet. Factor it into `js/core/` if a third module needs it.
 - The roadmap's "Build the cell" thread adds the same eight questions to Modules 2, 5, 9 and 11 with more loci.
 - Exam I covers binomial probability and chi-square early; the statistics modules may move earlier in the roadmap.

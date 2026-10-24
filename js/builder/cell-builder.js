@@ -538,15 +538,19 @@ export class CellBuilder {
       this.root.addChild(demo);
     }
 
-    const def = this.karyotype[0];
     const iconL = th * 0.5;
     const iconW = Math.max(8, iconL * 0.13);
-    const blank = (k) => ({ chrom: def.id, chromatids: Array.from({ length: k }, () => ({ alleles: Object.fromEntries(def.loci.map((l) => [l.id, null])) })) });
+    const blank = (def, k) => ({ chrom: def.id, chromatids: Array.from({ length: k }, () => ({ alleles: Object.fromEntries(def.loci.map((l) => [l.id, null])) })) });
 
-    const pieces = [
-      { caption: '1 chromatid', icon: () => this.drawChromosome(blank(1), { interactive: false, W: iconW, L: iconL }), payload: { type: 'new-chrom', copies: 1 } },
-      { caption: '2 chromatids', icon: () => this.drawChromosome(blank(2), { interactive: false, W: iconW, L: iconL }), payload: { type: 'new-chrom', copies: 2 } },
-    ];
+    // One chromosome piece per copy count for each chromosome. With more than one chromosome, a number beside the
+    // piece says which chromosome it is.
+    const pieces = this.karyotype.flatMap((def, i) =>
+      [1, 2].map((copies) => ({
+        caption: `${copies} chromatid${copies > 1 ? 's' : ''}`,
+        icon: () => this.chromosomeIcon(blank(def, copies), i, iconW, iconL),
+        payload: { type: 'new-chrom', chrom: def.id, copies },
+      })),
+    );
     for (const [locusId, list] of Object.entries(this.alleles)) {
       for (const allele of list) pieces.push({ caption: 'allele', icon: () => this.alleleChip(locusId, allele, th * 0.2), payload: { type: 'allele', locusId, allele } });
     }
@@ -567,7 +571,8 @@ export class CellBuilder {
       holder.on('pointerdown', (e) => this.startDrag(e, p.payload, p.icon));
       this.root.addChild(holder);
       this.trayPieces.push({ payload: p.payload, icon: p.icon, x: cx, y: holder.y });
-      const cap = textLabel(p.caption, 11, { fill: PALETTE.inkSoft, fontWeight: '700' });
+      // Captions wrap in a narrow slot, so "2 chromatids" can sit on two lines with many pieces in the tray.
+      const cap = textLabel(p.caption, 11, { fill: PALETTE.inkSoft, fontWeight: '700', wordWrap: true, wordWrapWidth: slotW - 4, align: 'center' });
       cap.anchor.set(0.5, 0);
       cap.position.set(cx, y + th * 0.8);
       this.root.addChild(cap);
@@ -588,6 +593,19 @@ export class CellBuilder {
     cap.position.set(bx, y + th * 0.8);
     this.root.addChild(cap);
     this.hits.trash = { x: bx - slotW / 2, y, width: slotW, height: th };
+  }
+
+  // A tray chromosome, with its number beside it when the karyotype has more than one chromosome.
+  chromosomeIcon(chrom, index, W, L) {
+    const c = new PIXI.Container();
+    c.addChild(this.drawChromosome(chrom, { interactive: false, W, L }));
+    if (this.karyotype.length > 1) {
+      const n = textLabel(String(index + 1), 12, { fill: 0xffffff, fontWeight: '800' });
+      n.anchor.set(0.5);
+      n.position.set(W + 12, 0);
+      c.addChild(new PIXI.Graphics().circle(W + 12, 0, 9).fill(PALETTE.sage), n);
+    }
+    return c;
   }
 
   alleleChip(locusId, allele, r) {
@@ -978,15 +996,17 @@ export class CellBuilder {
 
   drop(payload, t, p) {
     if (!t) return this.render();
-    const def = this.karyotype[0];
     switch (payload.type) {
       case 'new-chrom': {
+        const def = this.def(payload.chrom) ?? this.karyotype[0];
         const chromatids = Array.from({ length: payload.copies }, () => ({ alleles: Object.fromEntries(def.loci.map((l) => [l.id, null])) }));
         t.nucleus.items.push({ id: uid(), kind: 'chromosome', chrom: def.id, chromatids });
         if (t.kind === 'plate') t.nucleus.arrangement = 'plate';
         break;
       }
       case 'allele': {
+        // An allele only goes on a chromosome that carries its gene.
+        if (!t.def.loci.some((l) => l.id === payload.locusId)) break;
         const locus = this.nearestLocus(t.def, t.bounds, p);
         if (locus.id === payload.locusId) t.chromatid.alleles[locus.id] = payload.allele;
         else t.chromatid.alleles[payload.locusId] = payload.allele;

@@ -127,3 +127,34 @@ test('frequencies parse from fractions, decimals and percents', () => {
   assert.equal(parseFrequency('50%'), 0.5);
   assert.equal(parseFrequency('half'), null);
 });
+
+// Two genes on two chromosomes: each chromatid carries only the gene on its own chromosome.
+test('two unlinked genes: each chromatid is labeled for its own chromosome only', () => {
+  const K2 = [
+    { id: '1', length: 100, centromere: 42, loci: [{ id: 'S', pos: 20 }] },
+    { id: '2', length: 100, centromere: 42, loci: [{ id: 'R', pos: 30 }] },
+  ];
+  const LOCI2 = ['S', 'R'];
+  const zygote = diploid(K2, [
+    [haplotype({ S: 'S' }), haplotype({ S: 's' })],
+    [haplotype({ R: 'R' }), haplotype({ R: 'r' })],
+  ]);
+  const expected = [nucleusFromCell(zygote, { replicated: true, paired: true })];
+  const built = (chroms) => ({
+    label: '',
+    items: chroms.map(({ chrom, copies }) => ({
+      kind: 'bivalent',
+      chrom,
+      homologs: [0, 1].map(() => ({ kind: 'chromosome', chrom, chromatids: [{ alleles: { [K2.find((k) => k.id === chrom).loci[0].id]: null } }, { alleles: { [K2.find((k) => k.id === chrom).loci[0].id]: null } }] })),
+      crossovers: [],
+    })),
+  });
+  // A student who labels every chromatid with its own gene passes.
+  const student = built([{ chrom: '1' }, { chrom: '2' }]);
+  const labeled = { label: '', arrangement: 'paired', items: student.items.map((it, i) => ({ ...it, homologs: it.homologs.map((hm, k) => ({ ...hm, chromatids: hm.chromatids.map((ct) => ({ alleles: { [K2[i].loci[0].id]: k === 0 ? (i === 0 ? 'S' : 'R') : (i === 0 ? 's' : 'r') } })) })) })) };
+  assert.equal(evaluate([labeled], expected, { loci: LOCI2, matchBy: 'multiset', arrangement: 'paired' }).ok, true);
+  // An unlabeled chromatid still fails.
+  const blank = JSON.parse(JSON.stringify(labeled));
+  blank.items[0].homologs[0].chromatids[0].alleles.S = null;
+  assert.deepEqual(evaluate([blank], expected, { loci: LOCI2, matchBy: 'multiset', arrangement: 'paired' }).problems[0].code, 'unlabeled');
+});

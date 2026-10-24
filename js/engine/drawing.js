@@ -151,7 +151,8 @@ export function evaluate(student, expected, { loci, matchBy = 'multiset', minCro
   if (!expPaired && studentPaired) problems.push({ code: 'no-pairing' });
   if (problems.length) return done();
 
-  if (all.some((c) => c.chromatids.some((ct) => loci.some((l) => !ct.alleles[l])))) {
+  // Each chromatid is labeled for the genes on its own chromosome (a chromosome carries only its own locus).
+  if (all.some((c) => c.chromatids.some((ct) => Object.values(ct.alleles).some((a) => !a)))) {
     problems.push({ code: 'unlabeled' });
     return done();
   }

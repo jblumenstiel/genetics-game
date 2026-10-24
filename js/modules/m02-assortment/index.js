@@ -9,6 +9,7 @@ import { OrientationStep } from './orientation-step.js';
 import { GametesStep } from './gametes-step.js';
 import { CrossStep } from './cross-step.js';
 import { BreedStep } from './breed-step.js';
+import { BuildStep } from './build-step.js';
 
 class AssortmentModule {
   constructor(ctx) {
@@ -23,9 +24,13 @@ class AssortmentModule {
       { id: 'gametes', title: 'Gametes', stage: 'Gametes: from two genes', make: () => new GametesStep(this) },
       { id: 'cross', title: 'Punnett square', stage: 'Fertilization: the Punnett square', ownCanvas: true, make: () => new CrossStep(this) },
       { id: 'breed', title: 'Breed', stage: 'Breeding: a litter', make: () => new BreedStep(this) },
+      // Its stage name changes with each question (Fertilization, Mitosis, Meiosis), so the step sets it.
+      { id: 'build', title: 'Build the cell', stage: 'Fertilization: egg and sperm', ownCanvas: true, make: () => new BuildStep(this) },
     ];
     this.titleLayer = new PIXI.Container();
     this.titleH = 0;
+    // A step can replace the stage name while it runs (the Build the cell step, question by question).
+    this.stageText = null;
     ctx.root.addChild(this.titleLayer);
     this.buildPanel();
     this.go(0);
@@ -95,6 +100,7 @@ class AssortmentModule {
     this.index = i;
     this.container = new PIXI.Container();
     this.ctx.root.addChild(this.container);
+    this.stageText = null;
     this.refreshTitle();
     if (!this.steps[i].ownCanvas) this.drawParents();
     clear(this.body);
@@ -117,12 +123,17 @@ class AssortmentModule {
     const fontSize = w < 480 ? 20 : 24;
     this.titleH = 12 + Math.ceil(fontSize * 1.3);
     if (this.container) this.container.y = this.titleH;
-    const t = new PIXI.Text({ text: this.steps[this.index].stage, style: { fontFamily: 'Fraunces, Georgia, serif', fontWeight: '600', fontSize, fill: PALETTE.ink }, resolution: 2 });
+    const t = new PIXI.Text({ text: this.stageText ?? this.steps[this.index].stage, style: { fontFamily: 'Fraunces, Georgia, serif', fontWeight: '600', fontSize, fill: PALETTE.ink }, resolution: 2 });
     // A long title shrinks to stay on one line.
     t.scale.set(Math.min(1, (w - 32) / t.width));
     t.anchor.set(0.5, 0);
     t.position.set(w / 2, 12);
     this.titleLayer.addChild(t);
+  }
+
+  setStage(text) {
+    this.stageText = text;
+    this.refreshTitle();
   }
 
   // The parents stay on the canvas through the steps that don't draw their own; the layout follows the stage size.
