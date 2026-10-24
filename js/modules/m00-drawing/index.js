@@ -6,6 +6,7 @@
 // questions b to h follow, unless they pick a different genotype to follow.
 
 import { h, clear } from '../../core/dom.js';
+import { QuestionSheet } from '../../core/question-sheet.js';
 import { moduleEyebrow } from '../registry.js';
 import { makeRng, pick, int, shuffle } from '../../core/rng.js';
 import { PALETTE } from '../../core/palette.js';
@@ -101,6 +102,13 @@ class DrawingModule {
     // Question H's gamete list sits on the main page as HTML, under the canvas title.
     this.sheet = h('div', { class: 'stage-sheet', hidden: true });
     ctx.stage.append(this.sheet);
+    // Questions A to G: Question A's genotype choices, then Check, the feedback and the way on, at the bottom of the
+    // main page. The builder lays out above it; a new layout waits while the builder animates (anaphase, fusion),
+    // since laying out rebuilds its pieces.
+    this.qsheet = new QuestionSheet(this, () => {
+      if (this.builder.locked) this.layoutLater = true;
+      else this.layout();
+    });
 
     this.buildPanel();
     this.go(0);
@@ -765,21 +773,27 @@ class DrawingModule {
     const titleH = this.drawTitle(w);
     this.nucleiBar.y = titleH;
     const top = titleH + this.drawNucleiBar(w);
-    this.builder.setRect({ x: 12, y: 28 + top, w: w - 24, h: hgt - 36 - top });
-    // The panel sits to the right on wide screens and below on narrow ones.
+    const rect = { x: 12, y: 28 + top, w: w - 24, h: hgt - 36 - top - this.qsheet.space() };
+    this.builder.setRect(rect);
     this.lockNote.removeChildren().forEach((c) => c.destroy());
-    const wide = window.innerWidth > 860;
-    const t = textLabel(wide ? 'First choose a zygote genotype in the panel →' : 'First choose a zygote genotype below ↓', 16, { fill: 0xffffff, fontWeight: '800' });
+    const t = textLabel('First choose a zygote genotype below ↓', 16, { fill: 0xffffff, fontWeight: '800' });
     t.anchor.set(0.5);
     this.lockNote.addChild(new PIXI.Graphics().roundRect(-t.width / 2 - 16, -t.height / 2 - 10, t.width + 32, t.height + 20, 12).fill({ color: PALETTE.ink, alpha: 0.88 }), t);
-    this.lockNote.position.set(w / 2, hgt * 0.42);
+    this.lockNote.position.set(w / 2, rect.y + rect.h * 0.4);
+  }
+
+  // A layout the sheet asked for while the builder was animating.
+  catchUpLayout() {
+    if (!this.layoutLater) return;
+    this.layoutLater = false;
+    this.layout();
   }
 
   // A dropdown of one-line genotypes, possible and impossible, with `currentText` selected. onPick gets the option.
-  genotypeSelect(label, currentText, onPick) {
+  genotypeSelect(label, currentText, onPick, cls = 'choice') {
     const sel = h(
       'select',
-      { class: 'choice', 'aria-label': label },
+      { class: cls, 'aria-label': label },
       h('option', { value: '' }, 'choose a genotype…'),
       this.inst.options.map((o, i) => h('option', { value: String(i), selected: o.text === currentText }, o.text)),
     );
@@ -794,44 +808,31 @@ class DrawingModule {
     return h('div', { class: 'feedback bad' }, h('b', {}, IMPOSSIBLE_NOTE), ' ', option.reason);
   }
 
-  // Question a: the engine suggests parents, which the student can change; then they pick a zygote those parents
-  // could make and build its gametes.
-  renderZygote(body) {
+  // Question a, on the main page: the engine suggests parents, which the student can change; then they pick a zygote
+  // those parents could make, and build its gametes above.
+  zygoteForm() {
     const note = this.zygoteNote;
-    const parentRow = (who) => {
+    const row = (name, select, below) => [h('div', { class: 'dt-row' }, h('span', { class: 'dt-name' }, h('b', {}, name)), select), below ?? ''];
+    const parent = (who) => {
       const pnote = this.parentNotes[who];
-      return h(
-        'div',
-        { class: 'picker' },
-        h('div', { class: 'picker-label' }, who === 'mother' ? 'Mother’s genotype' : 'Father’s genotype'),
-        this.genotypeSelect(who, pnote?.text ?? (this.parents[who] ? g(this.parents[who]) : null), (o) => this.pickParent(who, o)),
-        pnote ? this.impossibleNote(pnote) : null,
-      );
+      const current = pnote?.text ?? (this.parents[who] ? g(this.parents[who]) : null);
+      return row(who === 'mother' ? 'Mother' : 'Father', this.genotypeSelect(who, current, (o) => this.pickParent(who, o), 'gl-field'), pnote ? this.impossibleNote(pnote) : null);
     };
-    body.append(
-      h(
-        'div',
-        { class: 'callout' },
-        h('b', {}, 'The parents'),
-        'Keep these genotypes or choose others. One line per parent: the slash separates the alleles on the two homologs.',
-        parentRow('mother'),
-        parentRow('father'),
-      ),
-    );
-    if (this.parentsPending()) {
-      body.append(h('p', { class: 'hint' }, 'Choose a possible genotype for both parents to continue.'));
-      return;
-    }
-    body.append(
-      h(
-        'div',
-        { class: 'picker' },
-        h('div', { class: 'picker-label' }, 'Zygote genotype these parents could produce'),
-        this.genotypeSelect('zygote', note?.option.text ?? (this.zygoteChoice ? g(this.zygoteChoice) : null), (o) => this.pickZygote(o)),
-        note ? h('div', { class: 'feedback bad' }, h('b', {}, note.title), ' ', note.reason) : null,
-        this.zygoteChoice && !note ? h('div', { class: 'feedback good' }, `Possible. Now build an egg and a sperm that together make ${g(this.zygoteChoice)}.`) : null,
-      ),
-    );
+    const zygote = this.parentsPending()
+      ? [h('p', { class: 'hint' }, 'Choose a possible genotype for both parents to continue.')]
+      : row(
+          'Zygote',
+          this.genotypeSelect('zygote', note?.option.text ?? (this.zygoteChoice ? g(this.zygoteChoice) : null), (o) => this.pickZygote(o), 'gl-field'),
+          note
+            ? h('div', { class: 'feedback bad' }, h('b', {}, note.title), ' ', note.reason)
+            : this.zygoteChoice
+              ? h('div', { class: 'feedback good' }, `Possible. Now build an egg and a sperm that together make ${g(this.zygoteChoice)}.`)
+              : null,
+        );
+    return [
+      h('p', { class: 'prompt' }, 'Keep these parents or choose others, then pick a zygote they could produce.'),
+      h('div', { class: 'dt-rows' }, h('div', { class: 'dt-pair' }, h('div', { class: 'dt-rows' }, parent('mother')), h('div', { class: 'dt-rows' }, parent('father'))), zygote),
+    ];
   }
 
   // A new parent genotype changes which zygotes are possible, so the zygote choice is checked again.
@@ -956,30 +957,35 @@ class DrawingModule {
   }
 
   renderBody() {
+    this.qsheet.begin();
+    this.renderPanelBody();
+    this.qsheet.end();
+  }
+
+  renderPanelBody() {
     const s = this.step;
     const body = clear(this.body);
     this.sheet.hidden = !s.list || !!this.birth;
+    this.resultEl = null;
     if (s.intro) return this.renderIntro(body);
     body.append(h('h2', {}, `${s.id.toUpperCase()}. ${s.title}`), h('p', {}, s.prompt()));
-    if (s.id === 'a') this.renderZygote(body);
-    else this.renderFollow(body);
+    if (s.id === 'a') {
+      body.append(
+        h('div', { class: 'callout' }, h('b', {}, `Choose the parents and a zygote on the main page ${window.innerWidth > 860 ? '←' : '↑'}`), 'Then build its egg and sperm, and press Check there.'),
+      );
+    } else this.renderFollow(body);
     if (!this.nucleiShown(s)) body.append(h('div', { class: 'callout' }, h('b', {}, 'First, answer the question above the cell'), s.nucleiQuestion.text));
     if (s.list) return this.renderList(body);
     this.arrangeEl = h('div');
     this.tools = h('div', { class: 'tools' });
     body.append(this.arrangeEl, this.tools);
     this.renderArrangement();
-    this.feedbackEl = h('div', { class: 'feedback' });
-    body.append(
-      h(
-        'div',
-        { class: 'row' },
-        h('button', { class: 'btn primary', onclick: () => this.check() }, 'Check'),
-      ),
-      this.feedbackEl,
-    );
+    if (s.id !== 'a') body.append(h('div', { class: 'callout' }, h('b', {}, `Build it on the main page ${window.innerWidth > 860 ? '←' : '↑'}`), 'Then press Check there.'));
+    this.resultEl = h('div');
+    body.append(this.resultEl);
     this.renderTools();
-    this.renderFeedback();
+    // Until the count above the cell is answered there is nothing to build, so the sheet waits.
+    if (this.nucleiShown(s)) this.renderFeedback();
   }
 
   // Metaphase questions: what the two arrangements mean. The choice itself is made on the canvas, in the bar above
@@ -1083,11 +1089,13 @@ class DrawingModule {
     this.renderFeedback();
     // A correct metaphase plays the anaphase that follows it, on the student's own cell; correct gametes fuse.
     if (ok && s.anaphase) this.playAnaphase();
-    if (ok && s.id === 'a') this.builder.fuseGametes(this.ctx.tween);
+    if (ok && s.id === 'a') this.builder.fuseGametes(this.ctx.tween).then(() => this.catchUpLayout());
   }
 
-  playAnaphase() {
-    if (this.step.anaphase) this.builder.anaphase(this.ctx.tween, this.step.anaphase);
+  async playAnaphase() {
+    if (!this.step.anaphase) return;
+    await this.builder.anaphase(this.ctx.tween, this.step.anaphase);
+    this.catchUpLayout();
   }
 
   // Turn a grader problem into a sentence for this question.
@@ -1183,26 +1191,29 @@ class DrawingModule {
     }[s.id];
   }
 
+  // The main page's sheet for Questions A to G: Question A's genotype choices, then the feedback and the buttons
+  // (Check, Show me after two wrong checks, Watch anaphase again, and the way on once right). The panel keeps a
+  // record of a right answer.
   renderFeedback() {
-    if (!this.feedbackEl) return;
+    if (!this.resultEl) return;
     const s = this.step;
-    const el = clear(this.feedbackEl);
-    if (!this.feedback) return;
-    el.className = `feedback ${this.feedback.kind}`;
-    el.append(this.feedback.text);
-    if (this.feedback.kind === 'bad' && (this.attempts[s.id] ?? 0) >= 2 && s.id !== 'a') {
-      el.append(' ', h('button', { class: 'btn small', onclick: () => this.showAnswer() }, 'Show me'));
-    }
-    if (this.feedback.kind === 'good') {
-      el.append(
-        h(
-          'div',
-          { class: 'row', style: { marginTop: '8px' } },
-          s.anaphase ? h('button', { class: 'btn small', onclick: () => this.playAnaphase() }, '▶ Watch anaphase again') : null,
-          this.index < this.steps.length - 1 ? h('button', { class: 'btn primary', onclick: () => this.go(this.index + 1) }, `Next: Question ${this.steps[this.index + 1].id.toUpperCase()} ▶`) : null,
-        ),
-      );
-    }
+    const fb = this.feedback;
+    const next = this.index < this.steps.length - 1 ? `Next: Question ${this.steps[this.index + 1].id.toUpperCase()} ▶` : null;
+    const onward = (fb?.kind === 'good' || fb?.shown) && next;
+    const button = (text, onclick, primary = false) => h('button', { class: primary ? 'btn primary' : 'btn', type: 'button', onclick }, text);
+    this.qsheet.showForm(
+      ...(s.id === 'a' ? this.zygoteForm() : []),
+      h('div', { class: `feedback${fb ? ` ${fb.kind}` : ''}`, role: 'status' }, fb?.text ?? ''),
+      h(
+        'div',
+        { class: 'row sheet-next' },
+        fb?.kind === 'bad' && !fb.shown && (this.attempts[s.id] ?? 0) >= 2 && s.id !== 'a' ? button('Show me', () => this.showAnswer()) : '',
+        fb?.kind === 'good' && s.anaphase ? button('▶ Watch anaphase again', () => this.playAnaphase()) : '',
+        button('Check', () => this.check(), !onward),
+        onward ? button(next, () => this.go(this.index + 1), true) : '',
+      ),
+    );
+    clear(this.resultEl).append(fb?.kind === 'good' ? h('p', { class: 'hint' }, `✓ ${fb.text}`) : '');
   }
 
   showAnswer() {
@@ -1212,11 +1223,8 @@ class DrawingModule {
     this.builder.setNuclei(expected.map((n, i) => ({ ...n, label: labels[i] ?? '', ...(s.arrangement ? { arrangement: s.arrangement } : {}) })));
     this.answers[s.id] = this.builder.getNuclei();
     this.revealed.add(s.id);
-    this.feedback = { kind: 'bad', text: 'Here is one correct answer. Study it, then try the next question.' };
+    this.feedback = { kind: 'bad', shown: true, text: 'Here is one correct answer. Study it, then try the next question.' };
     this.renderFeedback();
-    if (this.index < this.steps.length - 1) {
-      this.feedbackEl.append(h('div', { class: 'row', style: { marginTop: '8px' } }, h('button', { class: 'btn', onclick: () => this.go(this.index + 1) }, `Next: Question ${this.steps[this.index + 1].id.toUpperCase()} ▶`)));
-    }
   }
 
   // Gamete genotypes offered in question h: the haploid ones (one allele) mixed with look-alikes built from this
@@ -1366,6 +1374,7 @@ class DrawingModule {
   destroy() {
     this.destroyed = true;
     this.sheet.remove();
+    this.qsheet.remove();
     this.builder.destroy();
     this.scene.destroy({ children: true });
   }

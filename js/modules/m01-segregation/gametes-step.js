@@ -8,7 +8,7 @@ import { alleleLabel } from '../../engine/phenotype.js';
 import { fractionGlyph } from '../../engine/cross.js';
 import { label } from '../../render/chromosome.js';
 import { creatureCard, gameteView } from './instance.js';
-import { QuestionSheet, answeredNote, sheetPointer } from './question-sheet.js';
+import { QuestionSheet, answeredNote, sheetPointer } from '../../core/question-sheet.js';
 
 const MAX = 200;
 const BATCHES = [10, 20, 30];
@@ -272,9 +272,10 @@ export class GametesStep {
       return;
     }
 
-    // The answered question stays on the main page until the student makes a gamete.
+    // The answered question stays on the main page, with the panel's next move under it, until the student makes a
+    // gamete.
     if (this.mod.state.seen.has('gametes:fraction')) this.sheet.hide();
-    else this.sheet.show('gametes:fraction', q, { answered: true });
+    else this.sheet.show('gametes:fraction', q, { answered: true, next: [{ label: `Produce a random gamete from ${this.parent.name}`, onClick: () => this.pickSingle() }] });
     body.append(answeredNote(q));
     if (this.s.phase === 'single') this.renderSingle(body);
     else this.renderMany(body, p);

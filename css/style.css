@@ -159,6 +159,7 @@ select.gl-field {
 .stage-sheet .choice:hover:not(:disabled) { border-color: var(--sage); }
 .stage-sheet .choice.right { background: var(--sage-wash); border-color: var(--sage); }
 .stage-sheet .choice.wrong { background: var(--clay-wash); border-color: var(--clay); color: var(--ink-soft); }
+.stage-sheet .choice[aria-pressed='true'] { background: var(--sage-wash); border-color: var(--sage); }
 .stage-sheet.wordy .choice { flex: 1 1 100%; font-size: 15px; font-weight: 700; text-align: left; }
 .stage-sheet .sheet-next { margin: 12px 0 0; justify-content: flex-end; }
 /* Module 1's detective: the parents' genotype choices sit at the bottom of the main page, under the litter. */
@@ -169,6 +170,9 @@ select.gl-field {
 .dt-name { flex: 1 1 90px; display: grid; line-height: 1.25; }
 .dt-name small { font-size: 13px; color: var(--ink-soft); }
 .dt-row .gl-field { flex: 0 1 200px; width: auto; min-width: 0; }
+/* Two short rows side by side (Module 0's mother and father), stacked on a phone. */
+.dt-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+@media (max-width: 480px) { .dt-pair { grid-template-columns: 1fr; } }
 .dt-rows > .feedback { margin: -2px 0 0; }
 .dt-why summary { cursor: pointer; list-style: none; }
 .dt-why summary::-webkit-details-marker { display: none; }

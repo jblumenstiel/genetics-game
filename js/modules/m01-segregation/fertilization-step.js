@@ -13,7 +13,7 @@ import { offspringGenotypes, offspringPhenotypes, fractionGlyph } from '../../en
 import { Creature } from '../../render/creature.js';
 import { label } from '../../render/chromosome.js';
 import { creatureCard } from './instance.js';
-import { QuestionSheet, answeredNote, sheetPointer } from './question-sheet.js';
+import { QuestionSheet, answeredNote, sheetPointer } from '../../core/question-sheet.js';
 
 
 // The first few fertilizations come before the probability questions.
@@ -566,9 +566,10 @@ export class FertilizationStep {
   }
 
   // A question in the sheet on the main page. Once it is right, the panel records it, and it stays in the sheet with
-  // its answer selected until the student presses Next question; the last of a set (`last`) stays until the student
-  // moves on to the next part or page. Returns true once the student is past it.
-  ask(body, key, q, then, last = false) {
+  // its answer selected until the student presses Next question. The last of a set gets `proceed` instead: the same
+  // button the panel shows for moving on, and it stays until the student does. Returns true once past it.
+  ask(body, key, q, then, proceed = null) {
+    const last = !!proceed;
     const seen = this.mod.state.seen;
     if (this.answered.has(key)) {
       body.append(answeredNote(q));
@@ -581,7 +582,7 @@ export class FertilizationStep {
           this.renderPanel();
         },
       };
-      this.sheet.show(key, q, { answered: true, next: last ? null : next });
+      this.sheet.show(key, q, { answered: true, next: last ? proceed : next });
       return last;
     }
     this.asking = true;
@@ -689,7 +690,7 @@ export class FertilizationStep {
                 ? `There are three zygote genotypes, but ${this.gl([A, a])} can be made two ways: egg ${this.al(A)} + sperm ${this.al(a)}, or egg ${this.al(a)} + sperm ${this.al(A)}. Count those separately.`
                 : 'List the eggs (2 kinds) and the sperm (2 kinds), and pair each egg with each sperm.',
         })),
-      }, null, true);
+      }, null, [{ label: 'Organize the outcomes: the Punnett square ▶', onClick: () => this.toGrid() }]);
     if (done) {
       body.append(
         h('div', { class: 'callout' }, h('b', {}, 'Independent events multiply'), `Each fertilization joins one random egg and one random sperm. Every pairing has probability ½ × ½ = ¼.`),
@@ -706,12 +707,6 @@ export class FertilizationStep {
     this.revealGrid();
   }
 
-  toOne() {
-    this.sheet.moveOn(this.mod.state.seen);
-    this.s.phase = 'one';
-    this.resize(this.w, this.h);
-    this.renderPanel();
-  }
 
   renderGrid(body) {
     const m = this.mother;
@@ -738,7 +733,6 @@ export class FertilizationStep {
     );
     if (filled < 4) {
       if (total) body.append(h('p', { class: 'hint' }, `Cells found: ${filled} of 4. Keep fertilizing until every cell has happened at least once.`));
-      body.append(h('div', { class: 'row' }, h('button', { class: 'btn small', disabled: this.busy, onclick: () => this.toOne() }, '◀ Back to part 1')));
       return;
     }
 
@@ -785,7 +779,7 @@ export class FertilizationStep {
           ],
         },
         () => this.mod.complete('fertilization'),
-        true,
+        [{ label: 'Continue: D. Breed ▶', onClick: () => this.mod.next() }],
       );
     if (!done) return;
 
@@ -813,7 +807,7 @@ export class FertilizationStep {
         ),
         'Multiply for independent events that must both happen (this egg and this sperm). Add for different ways of getting the same result (two cells with the same genotype).',
       ),
-      h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: D. Breed ▶'), h('button', { class: 'btn small', onclick: () => this.toOne() }, '◀ Back to part 1')),
+      h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: D. Breed ▶')),
     );
   }
 }

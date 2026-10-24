@@ -13,7 +13,8 @@ class AssortmentModule {
   constructor(ctx) {
     this.ctx = ctx;
     this.inst = buildInstance(ctx.seed);
-    this.state = { answered: new Set() };
+    // answered: questions got right. seen: answered questions the student has moved past (they leave the screen).
+    this.state = { answered: new Set(), seen: new Set() };
     this.done = new Set();
     this.steps = [
       { id: 'orientation', title: 'Orientation', make: () => new OrientationStep(this) },

@@ -2,19 +2,18 @@
 // mother beside them. Each of the 16 cells is one kind of fertilization, with probability ¼ × ¼, and the cells sort
 // into four phenotype classes, 9:3:3:1.
 
-import { h, clear, question } from '../../core/dom.js';
+import { h, clear } from '../../core/dom.js';
+import { QuestionSheet } from '../../core/question-sheet.js';
 import { shuffle } from '../../core/rng.js';
 import { PALETTE, css } from '../../core/palette.js';
 import { dihybridGametes, gameteLabel } from '../../engine/dihybrid.js';
-import { offspringPhenotypes, fraction, integerRatio } from '../../engine/cross.js';
+import { offspringPhenotypes, fractionGlyph, integerRatio } from '../../engine/cross.js';
 import { Creature } from '../../render/creature.js';
 import { label } from '../../render/chromosome.js';
 import { genesOf, expectedClasses, genotypeOf, lookOf, creatureCard, questionRng } from './instance.js';
 import { eggView, spermView } from './views.js';
 
 const CLASS_COLORS = [PALETTE.sage, PALETTE.ochre, PALETTE.dusk, PALETTE.clay];
-const GLYPH = { 0.5: '½', 0.25: '¼', 0.75: '¾' };
-const fr = (p) => GLYPH[p] ?? fraction(p);
 
 export class CrossStep {
   constructor(mod) {
@@ -34,6 +33,8 @@ export class CrossStep {
   enter(container, body) {
     this.container = container;
     this.body = body;
+    // Questions sit on the main page; the square fits above them and follows the sheet's height.
+    this.sheet = new QuestionSheet(this.mod, () => this.resize(this.w, this.h));
     const { w, h: hgt } = this.mod.ctx.size();
     this.resize(w, hgt);
     this.renderPanel();
@@ -41,6 +42,8 @@ export class CrossStep {
 
   exit() {
     this.exited = true;
+    this.sheet.moveOn(this.mod.state.seen);
+    this.sheet.remove();
   }
 
   // ---- the square ----
@@ -68,8 +71,10 @@ export class CrossStep {
   }
 
   resize(w, hgt) {
+    this.w = w;
+    this.h = hgt;
     this.container.removeChildren().forEach((c) => c.destroy({ children: true }));
-    const G = (this.G = this.geometry(w, hgt));
+    const G = (this.G = this.geometry(w, hgt - this.sheet.space()));
     const { s, n, x0, y0 } = G;
     const layer = new PIXI.Container();
     this.container.addChild(layer);
@@ -108,7 +113,7 @@ export class CrossStep {
     this.sperm.forEach((g, j) => {
       const v = spermView(gameteLabel(this.father, g.alleles), s * 0.24);
       v.position.set(x0 + s * (j + 0.5) - s * 0.12, spermY);
-      const p = label(fr(g.p), small, { fill: PALETTE.inkSoft });
+      const p = label(fractionGlyph(g.p), small, { fill: PALETTE.inkSoft });
       p.anchor.set(0.5, 1);
       p.position.set(v.x, spermY - s * 0.15);
       layer.addChild(v, p);
@@ -117,7 +122,7 @@ export class CrossStep {
     this.eggs.forEach((g, i) => {
       const v = eggView(gameteLabel(this.mother, g.alleles), s * 0.2);
       v.position.set(eggX, y0 + s * (i + 0.5) - s * 0.06);
-      const p = label(fr(g.p), small, { fill: PALETTE.inkSoft });
+      const p = label(fractionGlyph(g.p), small, { fill: PALETTE.inkSoft });
       p.anchor.set(0.5, 0);
       p.position.set(eggX, v.y + s * 0.21);
       layer.addChild(v, p);
@@ -151,7 +156,7 @@ export class CrossStep {
     g.anchor.set(0.5, 0);
     g.y = -s * 0.02;
     if (g.width > s - 8) g.scale.set((s - 8) / g.width);
-    const product = `${fr(info.pe)} × ${fr(info.ps)} = ${fr(info.p)}`;
+    const product = `${fractionGlyph(info.pe)} × ${fractionGlyph(info.ps)} = ${fractionGlyph(info.p)}`;
     const p = label(`P(${info.genotype}) =\n${product}`, Math.max(9, s * 0.082), { fill: PALETTE.ink, fontWeight: '700', align: 'center' });
     // In a small cell the genotype is already written just above, so the probability can go without it.
     if (p.width > s - 8) p.text = product;
@@ -177,22 +182,18 @@ export class CrossStep {
     });
   }
 
-  ask(body, key, q, then) {
-    body.append(
-      question({
-        ...q,
-        onCorrect: () => {
-          this.answered.add(key);
-          then?.();
-          setTimeout(() => !this.exited && this.renderPanel(), 900);
-        },
-      }),
-    );
+  ask(body, key, q, { onRight, proceed } = {}) {
+    return this.sheet.ask(body, { key, q, state: this.mod.state, rerender: () => this.renderPanel(), onRight, proceed });
   }
 
   renderPanel() {
     if (this.exited) return;
-    const body = clear(this.body);
+    this.sheet.begin();
+    this.renderBody(clear(this.body));
+    this.sheet.end();
+  }
+
+  renderBody(body) {
     const { mother, father } = this.inst;
     const cells = this.eggs.length * this.sperm.length;
     const pCell = this.eggs[0].p * this.sperm[0].p;
@@ -206,50 +207,42 @@ export class CrossStep {
       ),
     );
 
-    if (!this.answered.has('cross:cells')) {
-      this.ask(body, 'cross:cells', {
-        prompt: `Each parent makes ${this.eggs.length} kinds of gametes, equally often. How many kinds of egg-and-sperm combinations are there, and how likely is each?`,
-        options: shuffle(questionRng(this.inst, 31), [
-          [this.eggs.length + this.sperm.length, 1 / (this.eggs.length + this.sperm.length)],
-          [cells, pCell],
-          [cells, 1 / this.eggs.length],
-        ]).map(([k, p]) => ({
-          label: `${k} kinds, each ${fraction(p)}`,
-          correct: k === cells && p === pCell,
-          feedback:
-            k === cells && p === pCell
-              ? `Right: ${this.eggs.length} kinds of egg × ${this.sperm.length} kinds of sperm = ${cells} combinations. Which egg and which sperm meet are independent, so each has probability ${fraction(this.eggs[0].p)} × ${fraction(this.sperm[0].p)} = ${fraction(pCell)}.`
-              : k !== cells
-                ? 'Every kind of egg can meet every kind of sperm, so the numbers multiply rather than add.'
-                : `${fraction(1 / this.eggs.length)} is the chance of one particular egg. The sperm is a separate, independent chance, so multiply the two.`,
-        })),
-      });
-      return;
-    }
-    body.append(h('p', { class: 'hint' }, `✓ ${cells} combinations, each ${fraction(this.eggs[0].p)} × ${fraction(this.sperm[0].p)} = ${fraction(pCell)}.`));
-
-    if (!this.answered.has('cross:ratio')) {
-      const correct = this.ratio();
-      const options = shuffle(questionRng(this.inst, 32), [correct, '9:7', '1:1:1:1', '3:1']).map((r) => ({
-        label: r,
-        correct: r === correct,
+    const cellsQ = {
+      prompt: `Each parent makes ${this.eggs.length} kinds of gametes, equally often. How many kinds of egg-and-sperm combinations are there, and how likely is each?`,
+      options: shuffle(questionRng(this.inst, 31), [
+        [this.eggs.length + this.sperm.length, 1 / (this.eggs.length + this.sperm.length)],
+        [cells, pCell],
+        [cells, 1 / this.eggs.length],
+      ]).map(([k, p]) => ({
+        label: `${k} kinds, each ${fractionGlyph(p)}`,
+        correct: k === cells && p === pCell,
         feedback:
-          r === correct
-            ? `Right. For each gene, ${fr(0.75)} of offspring show the dominant phenotype and ${fr(0.25)} the recessive one, and the genes assort independently, so the classes are 3×3, 3×1, 1×3 and 1×1 out of 16.`
-            : r === '9:7'
-              ? '9:7 is what you would see if being homozygous recessive at either gene gave the same phenotype. Here each gene colors its own part of the bdellbee, so there are four classes.'
-              : r === '1:1:1:1'
-                ? '1:1:1:1 is the ratio of the four kinds of gametes. In the offspring, the dominant phenotype of each gene shows in ¾ of the bdellbees.'
-                : '3:1 is a single-gene ratio. This cross follows two genes, so there are four phenotype classes.',
-      }));
-      this.ask(
-        body,
-        'cross:ratio',
-        { prompt: 'Sort the 16 bdellbees in the square by how they look. What is the ratio of the phenotype classes?', options },
-        () => this.resize(this.mod.ctx.size().w, this.mod.ctx.size().h),
-      );
-      return;
-    }
+          k === cells && p === pCell
+            ? `Right: ${this.eggs.length} kinds of egg × ${this.sperm.length} kinds of sperm = ${cells} combinations. Which egg and which sperm meet are independent, so each has probability ${fractionGlyph(this.eggs[0].p)} × ${fractionGlyph(this.sperm[0].p)} = ${fractionGlyph(pCell)}.`
+            : k !== cells
+              ? 'Every kind of egg can meet every kind of sperm, so the numbers multiply rather than add.'
+              : `${fractionGlyph(1 / this.eggs.length)} is the chance of one particular egg. The sperm is a separate, independent chance, so multiply the two.`,
+      })),
+    };
+    if (!this.ask(body, 'cross:cells', cellsQ)) return;
+
+    const correct = this.ratio();
+    const options = shuffle(questionRng(this.inst, 32), [correct, '9:7', '1:1:1:1', '3:1']).map((r) => ({
+      label: r,
+      correct: r === correct,
+      feedback:
+        r === correct
+          ? `Right. For each gene, ${fractionGlyph(0.75)} of offspring show the dominant phenotype and ${fractionGlyph(0.25)} the recessive one, and the genes assort independently, so the classes are 3×3, 3×1, 1×3 and 1×1 out of 16.`
+          : r === '9:7'
+            ? '9:7 is what you would see if being homozygous recessive at either gene gave the same phenotype. Here each gene colors its own part of the bdellbee, so there are four classes.'
+            : r === '1:1:1:1'
+              ? '1:1:1:1 is the ratio of the four kinds of gametes. In the offspring, the dominant phenotype of each gene shows in ¾ of the bdellbees.'
+              : '3:1 is a single-gene ratio. This cross follows two genes, so there are four phenotype classes.',
+    }));
+    const ratioQ = { prompt: 'Sort the 16 bdellbees in the square by how they look. What is the ratio of the phenotype classes?', options };
+    const onward = [{ label: 'Continue: D. Breed ▶', onClick: () => this.mod.next() }];
+    // A right answer tints the cells by phenotype class.
+    if (!this.ask(body, 'cross:ratio', ratioQ, { onRight: () => this.resize(this.w, this.h), proceed: onward })) return;
 
     this.mod.complete('cross');
     const rows = this.classes.map((c, k) => {
@@ -259,11 +252,10 @@ export class CrossStep {
         {},
         h('td', {}, h('span', { class: 'swatch', style: { background: css(CLASS_COLORS[k % CLASS_COLORS.length]) } }), c.label),
         h('td', {}, String(Math.round(c.p * cells))),
-        h('td', {}, `${parts.map((x) => fr(x.p)).join(' × ')} = ${fraction(c.p)}`),
+        h('td', {}, `${parts.map((x) => fractionGlyph(x.p)).join(' × ')} = ${fractionGlyph(c.p)}`),
       );
     });
     body.append(
-      h('p', { class: 'hint' }, `✓ Expected ratio ${this.ratio()}`),
       h('table', { class: 'arrangements' }, h('tr', {}, h('th', {}, 'Phenotype'), h('th', {}, `of ${cells}`), h('th', {}, 'Product rule')), rows),
       h(
         'div',
@@ -271,7 +263,7 @@ export class CrossStep {
         h('b', {}, 'The 9:3:3:1 ratio is two 3:1 ratios multiplied'),
         `Each gene alone gives 3:1 (${this.inst.traits.map((t) => t.name.toLowerCase()).join(' and ')}). Because the genes assort independently, the probability of a combination is the product of the single-gene probabilities.`,
       ),
-      h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: breed a litter ▶'),
+      h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: D. Breed ▶')),
     );
   }
 }

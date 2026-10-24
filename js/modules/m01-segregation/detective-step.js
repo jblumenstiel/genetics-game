@@ -2,7 +2,7 @@
 // The parents' genotypes are set when the puzzle is made and the litter comes from real meioses, so any pair that
 // could have produced the litter is a reasonable hypothesis; the result then names the parents actually used.
 
-import { h, clear, question } from '../../core/dom.js';
+import { h, clear } from '../../core/dom.js';
 import { PALETTE } from '../../core/palette.js';
 import { makeRng } from '../../core/rng.js';
 import { allGenotypes, offspringPhenotypes, offspringGenotypes, logLikelihood, genotypeGivenPhenotype, fractionGlyph } from '../../engine/cross.js';
@@ -11,6 +11,7 @@ import { Creature } from '../../render/creature.js';
 import { genotypeOptions, IMPOSSIBLE_NOTE } from '../../engine/genotypes.js';
 import { creatureCard, breed, makeParent, LETTERS, NAMES } from './instance.js';
 import { ratioText } from './breed-step.js';
+import { QuestionSheet, answeredNote, sheetPointer } from '../../core/question-sheet.js';
 import { pick, shuffle, int } from '../../core/rng.js';
 
 // ratioText starts "All pigmented" when there is one class; inside a sentence it reads "all pigmented".
@@ -51,9 +52,8 @@ export class DetectiveStep {
     this.body = body;
     this.layer = new PIXI.Container();
     container.addChild(this.layer);
-    // The parents' genotype choices sit on the main page as HTML, under the litter.
-    this.sheet = h('div', { class: 'stage-sheet at-bottom', hidden: true });
-    this.mod.ctx.stage.append(this.sheet);
+    // The parents' genotype choices, then the closing question, sit on the main page under the litter.
+    this.sheet = new QuestionSheet(this.mod, () => this.resize(this.w, this.h));
     const { w, h: hgt } = this.mod.size();
     this.w = w;
     this.h = hgt;
@@ -62,6 +62,7 @@ export class DetectiveStep {
 
   exit() {
     this.destroyScene();
+    this.sheet.moveOn(this.mod.state.seen);
     this.sheet.remove();
   }
 
@@ -71,19 +72,14 @@ export class DetectiveStep {
 
   // Canvas height the sheet covers, with its margins.
   sheetSpace() {
-    return this.sheet.hidden ? 0 : this.sheet.offsetHeight + 24;
+    return this.sheet.space();
   }
 
-  // The sheet's height decides how much canvas is left above it, so the scene follows any change in it.
+  // The sheet tells the scene to lay out again whenever its height changes.
   render(relayout = false) {
     this.renderSheet();
     this.renderPanel();
     if (relayout) this.resize(this.w, this.h);
-    else this.fit();
-  }
-
-  fit() {
-    if (this.sheetSpace() !== this.laidOutFor) this.resize(this.w, this.h);
   }
 
   resize(w, hgt) {
@@ -166,7 +162,8 @@ export class DetectiveStep {
     if (this.revealed) text += ' This matches the answer you were shown, so it does not count as completed. Pick different parents to try one on your own.';
     else this.mod.complete('detective');
     this.message = { kind: 'good', text };
-    this.render();
+    // Redraw the scene so the parents' cards show their genotypes.
+    this.render(true);
   }
 
   // Why the only possible pair is forced, parent by parent: a recessive phenotype fixes a homozygote, and a
@@ -301,15 +298,25 @@ export class DetectiveStep {
     };
   }
 
-  // One row per parent: its name and phenotype, then a dropdown of possible and impossible genotypes. An impossible
-  // pick is explained under its row. Hidden once the puzzle is solved.
+  // Before the puzzle is solved: one row per parent, its name and phenotype, then a dropdown of possible and impossible
+  // genotypes, with an impossible pick explained under its row. After: the closing question, and once it is right,
+  // the panel's two ways on under it.
   renderSheet() {
-    const sheet = clear(this.sheet);
-    sheet.hidden = this.solved;
-    if (this.solved) return;
+    if (this.solved) {
+      const key = 'detective:conditional';
+      const onCorrect = () => {
+        this.mod.state.answered.add(key);
+        this.render();
+      };
+      const next = [
+        { label: 'Pick different parents', onClick: () => this.newPuzzle() },
+        { label: 'Main page', onClick: () => (location.hash = '#/') },
+      ];
+      return this.sheet.show(key, { ...this.conditionalQuestion(), onCorrect }, { answered: this.mod.state.answered.has(key), next });
+    }
     const bad = this.message?.kind === 'bad';
     const ready = this.choice.every((c) => c?.possible);
-    sheet.append(
+    this.sheet.showForm(
       h(
         'div',
         { class: 'dt-rows' },
@@ -351,7 +358,7 @@ export class DetectiveStep {
   impossibleNote(option) {
     if (window.innerWidth > 480) return h('div', { class: 'feedback bad' }, h('b', {}, IMPOSSIBLE_NOTE), ' ', option.reason);
     const note = h('details', { class: 'feedback bad dt-why' }, h('summary', {}, h('b', {}, IMPOSSIBLE_NOTE), ' ', h('span', {}, 'Why?')), option.reason);
-    note.addEventListener('toggle', () => this.fit());
+    note.addEventListener('toggle', () => this.sheet.fit());
     return note;
   }
 
@@ -380,18 +387,8 @@ export class DetectiveStep {
       );
     } else {
       body.append(h('div', { class: 'feedback good' }, this.message.text));
-      // The conditional question stays on screen, its answer selected, once it is right.
       const answered = this.mod.state.answered.has('detective:conditional');
-      body.append(
-        question({
-          ...this.conditionalQuestion(),
-          answered,
-          onCorrect: () => {
-            this.mod.state.answered.add('detective:conditional');
-            this.renderPanel();
-          },
-        }),
-      );
+      body.append(answered ? answeredNote(this.conditionalQuestion()) : sheetPointer('One last question about this cross.'));
       if (answered && this.revealed) {
         body.append(h('div', { class: 'callout' }, h('b', {}, 'Now solve one on your own'), 'Pick different parents for a new litter, or return to the main page.'));
       } else if (answered) {

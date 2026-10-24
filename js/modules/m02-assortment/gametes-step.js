@@ -1,11 +1,12 @@
 // Step B: pick the parent's gametes from a list that mixes in look-alikes that are not haploid, apply the product
 // rule, then sample real meioses from the engine to check it.
 
-import { h, clear, question } from '../../core/dom.js';
+import { h, clear } from '../../core/dom.js';
+import { QuestionSheet } from '../../core/question-sheet.js';
 import { pick, shuffle } from '../../core/rng.js';
 import { alleleLabel } from '../../engine/phenotype.js';
 import { dihybridGametes, gameteChoices, gameteLabel, metaphaseIAlignments } from '../../engine/dihybrid.js';
-import { fraction, integerRatio } from '../../engine/cross.js';
+import { fractionGlyph, integerRatio } from '../../engine/cross.js';
 import { gametes, gameteAlleles, genesOf, questionRng } from './instance.js';
 import { tallyBars } from './tally.js';
 
@@ -28,11 +29,15 @@ export class GametesStep {
 
   enter(container, body) {
     this.body = body;
+    // The gamete picker and the product-rule question sit on the main page, under the parents.
+    this.sheet = new QuestionSheet(this.mod, () => {});
     this.renderPanel();
   }
 
   exit() {
     this.exited = true;
+    this.sheet.moveOn(this.mod.state.seen);
+    this.sheet.remove();
   }
 
   get answered() {
@@ -104,31 +109,38 @@ export class GametesStep {
     this.renderPanel();
   }
 
-  renderPicker(body) {
+  // The picker, on the main page. Once right it stays, answer selected, until the student presses Next question.
+  renderPicker() {
     const { name, label } = this.parent;
     const fb = this.s.feedback;
     const done = this.answered.has('gametes:pick');
-    body.append(
+    const next = () => {
+      this.mod.state.seen.add('gametes:pick');
+      this.renderPanel();
+    };
+    this.sheet.showForm(
       h(
         'div',
         { class: 'question' },
         h('p', { class: 'prompt' }, `${name} is ${label}, a diploid with the two genes on different chromosomes. Under normal meiosis, which gamete genotypes can ${name} make? Pick all that apply.`),
         h(
           'div',
-          { class: 'choices inline wide' },
+          { class: 'choices' },
           this.choices.map((c) =>
             h('button', { class: 'choice', type: 'button', 'aria-pressed': String(this.s.picked.includes(c.text)), disabled: done, onclick: () => this.toggle(c.text) }, c.text),
           ),
         ),
-        done
-          ? ''
-          : h(
-              'div',
-              { class: 'row' },
-              h('button', { class: 'btn primary', disabled: !this.s.picked.length, onclick: () => this.check() }, 'Check'),
-              this.s.wrong >= SHOW_AFTER ? h('button', { class: 'btn small', onclick: () => this.show() }, 'Show me') : '',
-            ),
         fb ? h('div', { class: `feedback ${fb.kind}`, role: 'status' }, fb.text) : '',
+      ),
+      h(
+        'div',
+        { class: 'row sheet-next' },
+        done
+          ? h('button', { class: 'btn primary', type: 'button', onclick: next }, 'Next question ▶')
+          : [
+              this.s.wrong >= SHOW_AFTER ? h('button', { class: 'btn small', type: 'button', onclick: () => this.show() }, 'Show me') : '',
+              h('button', { class: 'btn primary', type: 'button', disabled: !this.s.picked.length, onclick: () => this.check() }, 'Check'),
+            ],
       ),
     );
   }
@@ -136,6 +148,8 @@ export class GametesStep {
   // ---- sampling ----
 
   sample() {
+    // Sampling is the student's next move, so the answered question leaves the main page.
+    this.sheet.moveOn(this.mod.state.seen);
     const rng = this.inst.rng;
     for (let i = 0; i < 100; i++) {
       const key = this.label(gameteAlleles(this.inst, pick(rng, gametes(this.parent, rng))));
@@ -154,7 +168,12 @@ export class GametesStep {
 
   renderPanel() {
     if (this.exited) return;
-    const body = clear(this.body);
+    this.sheet.begin();
+    this.renderBody(clear(this.body));
+    this.sheet.end();
+  }
+
+  renderBody(body) {
     const [t1, t2] = this.inst.traits;
     const [a1, a2] = this.targets();
     body.append(
@@ -166,46 +185,38 @@ export class GametesStep {
       ),
     );
 
-    if (!this.answered.has('gametes:pick') || this.s.feedback) {
-      this.renderPicker(body);
-      if (!this.answered.has('gametes:pick')) return;
-      this.s.feedback = null;
-    } else {
-      body.append(h('p', { class: 'hint' }, `✓ ${this.parent.name} makes ${this.expected.map((g) => this.label(g.alleles)).join(', ')}.`));
+    const picked = this.answered.has('gametes:pick');
+    if (picked) body.append(h('p', { class: 'hint' }, `✓ ${this.parent.name} makes ${this.expected.map((g) => this.label(g.alleles)).join(', ')}.`));
+    if (!picked || !this.mod.state.seen.has('gametes:pick')) {
+      this.renderPicker();
+      if (!picked) body.append(h('div', { class: 'callout' }, h('b', {}, `Answer on the main page ${window.innerWidth > 860 ? '←' : '↑'}`), 'Pick every kind of gamete, then press Check.'));
+      return;
     }
 
     const p1 = this.probAt(0, a1);
     const p2 = this.probAt(1, a2);
     const joint = p1 * p2;
-    if (!this.answered.has('gametes:joint')) {
-      const name1 = alleleLabel(t1, a1);
-      const name2 = alleleLabel(t2, a2);
-      body.append(
-        question({
-          prompt: `What fraction of ${this.parent.name}’s gametes carry both ${name1} and ${name2} (the ${this.label([a1, a2])} gamete)?`,
-          options: [1 / 8, 1 / 4, 1 / 2, 1].map((v) => ({
-            label: fraction(v),
-            correct: Math.abs(v - joint) < 1e-9,
-            feedback:
-              Math.abs(v - joint) < 1e-9
-                ? `Right. ${fraction(p1)} of gametes carry ${name1} and ${fraction(p2)} carry ${name2}, and the genes assort independently. Product rule: ${fraction(p1)} × ${fraction(p2)} = ${fraction(joint)}.`
-                : v === 1
-                  ? `Not every gamete carries both. Each gamete gets just one allele of each gene, so some carry ${alleleLabel(t1, this.parent.genes[0][0])} instead of ${name1}.`
-                  : v > joint
-                    ? `${fraction(v)} is the chance for one gene alone. The gamete also has to carry the right allele of the other gene, another ${fraction(p2)}, so multiply.`
-                    : `That multiplies one chance too many. There are two genes, so two independent chances: ${fraction(p1)} × ${fraction(p2)}.`,
-          })),
-          onCorrect: () => {
-            this.answered.add('gametes:joint');
-            setTimeout(() => !this.exited && this.renderPanel(), 900);
-          },
-        }),
-      );
-      return;
-    }
+    const name1 = alleleLabel(t1, a1);
+    const name2 = alleleLabel(t2, a2);
+    const jointQ = {
+      prompt: `What fraction of ${this.parent.name}’s gametes carry both ${name1} and ${name2} (the ${this.label([a1, a2])} gamete)?`,
+      options: [1 / 8, 1 / 4, 1 / 2, 1].map((v) => ({
+        label: fractionGlyph(v),
+        correct: Math.abs(v - joint) < 1e-9,
+        feedback:
+          Math.abs(v - joint) < 1e-9
+            ? `Right. ${fractionGlyph(p1)} of gametes carry ${name1} and ${fractionGlyph(p2)} carry ${name2}, and the genes assort independently. Product rule: ${fractionGlyph(p1)} × ${fractionGlyph(p2)} = ${fractionGlyph(joint)}.`
+            : v === 1
+              ? `Not every gamete carries both. Each gamete gets just one allele of each gene, so some carry ${alleleLabel(t1, this.parent.genes[0][0])} instead of ${name1}.`
+              : v > joint
+                ? `${fractionGlyph(v)} is the chance for one gene alone. The gamete also has to carry the right allele of the other gene, another ${fractionGlyph(p2)}, so multiply.`
+                : `That multiplies one chance too many. There are two genes, so two independent chances: ${fractionGlyph(p1)} × ${fractionGlyph(p2)}.`,
+      })),
+    };
+    const onward = [{ label: 'Sample 100 meioses ▶', onClick: () => this.sample() }];
+    if (!this.sheet.ask(body, { key: 'gametes:joint', q: jointQ, state: this.mod.state, rerender: () => this.renderPanel(), proceed: onward })) return;
 
     body.append(
-      h('p', { class: 'hint' }, `✓ Product rule: P(${this.label([a1, a2])}) = ${fraction(p1)} × ${fraction(p2)} = ${fraction(joint)}`),
       h('p', {}, `Now let the engine run real meioses in ${this.parent.name}. Each click collects one gamete from each of 100 meioses, and the tally should settle near the four expected fractions.`),
       h(
         'div',
@@ -221,8 +232,8 @@ export class GametesStep {
       });
       body.append(
         tallyBars(rows, this.s.total),
-        h('p', { class: 'hint' }, `${this.s.total} gametes. The dark tick marks the expected ${fraction(this.expected[0].p)}. Expected ratio: ${integerRatio(this.expected.map((g) => g.p)).join(' : ')}.`),
-        h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: the Punnett square ▶'),
+        h('p', { class: 'hint' }, `${this.s.total} gametes. The dark tick marks the expected ${fractionGlyph(this.expected[0].p)}. Expected ratio: ${integerRatio(this.expected.map((g) => g.p)).join(' : ')}.`),
+        h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: C. Punnett square ▶')),
       );
     }
   }

@@ -7,7 +7,7 @@ import { genotypeLabel, alleleLabel } from '../../engine/phenotype.js';
 import { Creature } from '../../render/creature.js';
 import { label } from '../../render/chromosome.js';
 import { creatureCard, breed, phenotypeClasses } from './instance.js';
-import { QuestionSheet, answeredNote, sheetPointer } from './question-sheet.js';
+import { QuestionSheet, answeredNote, sheetPointer } from '../../core/question-sheet.js';
 
 export function ratioText(dist) {
   const ints = integerRatio(dist.map((d) => d.p));
@@ -209,12 +209,12 @@ export class BreedStep {
   }
 
   // A question already got right: recorded in the panel, and still on the main page with its answer selected until
-  // the student moves on.
-  keep(body, key, q) {
+  // the student moves on, with the panel's button for moving on (`proceed`) under it.
+  keep(body, key, q, proceed) {
     body.append(answeredNote(q));
     if (this.mod.state.seen.has(key)) return;
     this.asking = true;
-    this.sheet.show(key, q, { answered: true });
+    this.sheet.show(key, q, { answered: true, next: proceed });
   }
 
   renderBody(body) {
@@ -239,7 +239,7 @@ export class BreedStep {
     }
 
     const total = this.total();
-    this.keep(body, 'breed:ratio', ratioQ);
+    this.keep(body, 'breed:ratio', ratioQ, [{ label: 'Breed 10 ▶', onClick: () => this.breedMany(10) }]);
     body.append(
       h(
         'div',
@@ -276,7 +276,7 @@ export class BreedStep {
           this.renderPanel();
         });
       } else {
-        this.keep(body, 'breed:genotype', this.genotypeQuestion());
+        this.keep(body, 'breed:genotype', this.genotypeQuestion(), [{ label: 'Continue: E. Detective ▶', onClick: () => this.mod.next() }]);
         body.append(
           h(
             'div',

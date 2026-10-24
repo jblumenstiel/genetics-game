@@ -1,8 +1,9 @@
 // Step A: two pairs of homologs line up at Metaphase I, and each pair orients independently of the other. Two
 // bivalents give two distinct alignments, and each alignment makes two kinds of gametes: four in all.
 
-import { h, clear, question } from '../../core/dom.js';
-import { fraction } from '../../engine/cross.js';
+import { h, clear } from '../../core/dom.js';
+import { QuestionSheet } from '../../core/question-sheet.js';
+import { fractionGlyph } from '../../engine/cross.js';
 import { metaphaseIAlignments, dihybridGametes, gameteLabel } from '../../engine/dihybrid.js';
 import { genesOf } from './instance.js';
 
@@ -18,31 +19,28 @@ export class OrientationStep {
 
   enter(container, body) {
     this.body = body;
+    // Questions sit on the main page, under the parents.
+    this.sheet = new QuestionSheet(this.mod, () => {});
     this.renderPanel();
   }
 
   exit() {
     this.exited = true;
+    this.sheet.moveOn(this.mod.state.seen);
+    this.sheet.remove();
   }
 
-  get answered() {
-    return this.mod.state.answered;
-  }
-
-  ask(body, key, q) {
-    body.append(
-      question({
-        ...q,
-        onCorrect: () => {
-          this.answered.add(key);
-          setTimeout(() => !this.exited && this.renderPanel(), 900);
-        },
-      }),
-    );
+  ask(body, key, q, proceed) {
+    return this.sheet.ask(body, { key, q, state: this.mod.state, rerender: () => this.renderPanel(), proceed });
   }
 
   renderPanel() {
-    const body = clear(this.body);
+    this.sheet.begin();
+    this.renderBody(clear(this.body));
+    this.sheet.end();
+  }
+
+  renderBody(body) {
     const { name, label } = this.parent;
     const [t1, t2] = this.inst.traits;
     const n = this.alignments.length;
@@ -55,53 +53,48 @@ export class OrientationStep {
       ),
     );
 
-    if (!this.answered.has('orientation:alignments')) {
-      this.ask(body, 'orientation:alignments', {
-        prompt: 'Counting mirror images as the same, how many different alignments of the two bivalents are possible at Metaphase I?',
-        options: [1, 2, 4].map((k) => ({
-          label: String(k),
-          correct: k === n,
-          feedback:
-            k === n
-              ? `Right. Hold the first bivalent still: the second can face the same way or the opposite way. Flipping both at once is the same alignment seen from the other side, so there are ${n}, each with probability ${fraction(1 / n)}.`
-              : k < n
-                ? 'The two bivalents orient independently, so the second pair does not have to copy the first.'
-                : 'That counts each alignment twice. Flipping both bivalents at once gives the same alignment seen from the other side.',
-        })),
-      });
-      return;
-    }
+    const alignmentsQ = {
+      prompt: 'Counting mirror images as the same, how many different alignments of the two bivalents are possible at Metaphase I?',
+      options: [1, 2, 4].map((k) => ({
+        label: String(k),
+        correct: k === n,
+        feedback:
+          k === n
+            ? `Right. Hold the first bivalent still: the second can face the same way or the opposite way. Flipping both at once is the same alignment seen from the other side, so there are ${n}, each with probability ${fractionGlyph(1 / n)}.`
+            : k < n
+              ? 'The two bivalents orient independently, so the second pair does not have to copy the first.'
+              : 'That counts each alignment twice. Flipping both bivalents at once gives the same alignment seen from the other side.',
+      })),
+    };
+    if (!this.ask(body, 'orientation:alignments', alignmentsQ)) return;
+    body.append(this.table());
 
-    body.append(h('p', { class: 'hint' }, `✓ ${n} alignments, each with probability ${fraction(1 / n)}.`), this.table());
-
-    if (!this.answered.has('orientation:kinds')) {
-      const k = this.kinds.length;
-      this.ask(body, 'orientation:kinds', {
-        prompt: `Under normal meiosis, how many genetically different kinds of gametes can ${name} (${label}) make?`,
-        options: [2, 4, 8].map((x) => ({
-          label: String(x),
-          correct: x === k,
-          feedback:
-            x === k
-              ? `Right. Each alignment makes two kinds, and the two alignments make different kinds: ${this.kinds.join(', ')}.`
-              : x < k
-                ? 'One alignment makes 2 kinds of gametes, but the other alignment, equally likely, makes 2 different kinds.'
-                : 'A gamete carries one allele of each of the 2 genes, so there are 2 × 2 combinations.',
-        })),
-      });
-      return;
-    }
+    const k = this.kinds.length;
+    const kindsQ = {
+      prompt: `Under normal meiosis, how many genetically different kinds of gametes can ${name} (${label}) make?`,
+      options: [2, 4, 8].map((x) => ({
+        label: String(x),
+        correct: x === k,
+        feedback:
+          x === k
+            ? `Right. Each alignment makes two kinds, and the two alignments make different kinds: ${this.kinds.join(', ')}.`
+            : x < k
+              ? 'One alignment makes 2 kinds of gametes, but the other alignment, equally likely, makes 2 different kinds.'
+              : 'A gamete carries one allele of each of the 2 genes, so there are 2 × 2 combinations.',
+      })),
+    };
+    const onward = [{ label: 'Continue: B. Gametes ▶', onClick: () => this.mod.next() }];
+    if (!this.ask(body, 'orientation:kinds', kindsQ, onward)) return;
 
     this.mod.complete('orientation');
     body.append(
-      h('p', { class: 'hint' }, `✓ ${this.kinds.length} kinds of gametes: ${this.kinds.join(', ')}.`),
       h(
         'div',
         { class: 'callout' },
         h('b', {}, 'Independent assortment'),
         'Genes on different chromosomes segregate independently at Meiosis I: how one pair lines up says nothing about how the other pair lines up. So every combination of one allele from each gene is equally likely in the gametes.',
       ),
-      h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: gametes ▶'),
+      h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => this.mod.next() }, 'Continue: B. Gametes ▶')),
     );
   }
 

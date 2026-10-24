@@ -1,11 +1,12 @@
 // Step A: walk a cell through meiosis (or mitosis) stage by stage, with checkpoint questions.
 
-import { h, clear, question } from '../../core/dom.js';
+import { h, clear } from '../../core/dom.js';
 import { ChromatidView, CellLayer, SpindleLayer } from '../../render/chromosome.js';
 import { meiosis } from '../../engine/meiosis.js';
 import { alleleOn } from '../../engine/genome.js';
 import { alleleLabel } from '../../engine/phenotype.js';
 import { creatureCard } from './instance.js';
+import { QuestionSheet, answeredNote, sheetPointer } from '../../core/question-sheet.js';
 
 const HALF_PI = Math.PI / 2;
 
@@ -204,6 +205,9 @@ export class MeiosisStep {
 
     this.frame = () => this.draw();
     this.app.ticker.add(this.frame);
+    // Checkpoint questions sit on the main page. The cell keeps room for them at every stage, so it does not jump
+    // when a stage with a question follows one without.
+    this.sheet = new QuestionSheet(this.mod, () => {});
     const { w, h: hgt } = this.mod.size();
     this.resize(w, hgt);
     this.renderPanel();
@@ -212,9 +216,12 @@ export class MeiosisStep {
   exit() {
     this.app.ticker.remove(this.frame);
     this.card?.destroy();
+    this.sheet.remove();
   }
 
-  resize(w, hgt) {
+  resize(w, full) {
+    // Room for the question sheet at the bottom, unless it sits under the canvas (stacked layout).
+    const hgt = full - (this.sheet.el.classList.contains('below') ? 0 : Math.min(270, full * 0.4));
     const R = Math.max(110, Math.min(w * 0.38, hgt * 0.36));
     const cardSize = Math.max(64, Math.min(104, hgt * 0.16));
     this.g = {
@@ -528,6 +535,17 @@ export class MeiosisStep {
     return true;
   }
 
+  // The ways on from this stage, as the panel offers them; the sheet repeats them under an answered question.
+  moves() {
+    const last = this.index === this.stages.length - 1;
+    if (!last) return [{ label: 'Next stage ▶', onClick: () => this.goTo(this.index + 1) }];
+    if (this.mode === 'mitosis') return [{ label: 'Back to meiosis ▶', onClick: () => this.setMode('meiosis') }];
+    return [
+      { label: 'Continue: B. Gametes ▶', onClick: () => this.mod.next() },
+      { label: 'Compare with mitosis', onClick: () => this.setMode('mitosis') },
+    ];
+  }
+
   renderPanel() {
     this.mod.refreshTitle();
     const s = this.stage;
@@ -550,6 +568,20 @@ export class MeiosisStep {
       h('p', {}, s.text),
     );
 
+    // The stage's question, if any, goes in the sheet on the main page; the panel points to it, then records it. A
+    // right answer stays in the sheet with the panel's moves under it.
+    let asked = null;
+    const ask = (k, q, onRight) => {
+      asked = k;
+      const answered = this.answered.has(k);
+      body.append(answered ? answeredNote(q) : sheetPointer('Each answer you get right is recorded here.'));
+      const onCorrect = () => {
+        this.answered.add(k);
+        onRight?.();
+        this.renderPanel();
+      };
+      this.sheet.show(k, { ...q, onCorrect }, { answered, next: this.moves() });
+    };
     if (s.interactive) {
       body.append(
         h(
@@ -561,38 +593,12 @@ export class MeiosisStep {
             : s.interactive,
         ),
       );
-      const k = `${this.key(s)}:flip`;
-      if (this.flips && s.flipQ) {
-        // An answered question stays on screen, its answer selected, until the student moves on.
-        const q = this.orientationQuestion();
-        body.append(
-          question({
-            ...q,
-            answered: this.answered.has(k),
-            onCorrect: () => {
-              this.answered.add(k);
-              this.renderPanel();
-            },
-          }),
-        );
-      }
+      if (this.flips && s.flipQ) ask(`${this.key(s)}:flip`, this.orientationQuestion());
     }
 
     const q = s.q === 'products' ? this.productsQuestion() : s.q;
-    if (q) {
-      const k = this.key(s);
-      body.append(
-        question({
-          ...q,
-          answered: this.answered.has(k),
-          onCorrect: () => {
-            this.answered.add(k);
-            if (s.id === 'T2') this.mod.complete('meiosis');
-            this.renderPanel();
-          },
-        }),
-      );
-    }
+    if (q) ask(this.key(s), q, () => s.id === 'T2' && this.mod.complete('meiosis'));
+    if (!asked) this.sheet.hide();
 
     const nav = h(
       'div',

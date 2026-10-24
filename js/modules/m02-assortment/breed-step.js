@@ -1,7 +1,7 @@
 // Step 4: breed a litter through real meioses and fertilization, then compare the tally with 9:3:3:1.
 
 import { h, clear } from '../../core/dom.js';
-import { fraction, integerRatio } from '../../engine/cross.js';
+import { fractionGlyph, integerRatio } from '../../engine/cross.js';
 import { expectedClasses, offspringPhenotype } from './instance.js';
 import { tallyBars } from './tally.js';
 
@@ -68,14 +68,14 @@ export class BreedStep {
           { class: 'arrangements' },
           h('tr', {}, h('th', {}, 'Phenotype'), h('th', {}, 'Expected'), h('th', {}, 'Observed')),
           this.classes.map((c) =>
-            h('tr', {}, h('td', {}, c.label), h('td', {}, fraction(c.p)), h('td', {}, `${((100 * (this.counts[c.key] ?? 0)) / this.total).toFixed(0)}%`)),
+            h('tr', {}, h('td', {}, c.label), h('td', {}, fractionGlyph(c.p)), h('td', {}, `${((100 * (this.counts[c.key] ?? 0)) / this.total).toFixed(0)}%`)),
           ),
         ),
         h(
           'div',
           { class: 'callout' },
           h('b', {}, 'Small litters wobble'),
-          `With ${this.total} offspring, the classes only roughly match ${this.classes.map((c) => fraction(c.p)).join(', ')}. The ratio is an expectation: the larger the litter, the closer the tally gets.`,
+          `With ${this.total} offspring, the classes only roughly match ${this.classes.map((c) => fractionGlyph(c.p)).join(', ')}. The ratio is an expectation: the larger the litter, the closer the tally gets.`,
         ),
       );
     }
