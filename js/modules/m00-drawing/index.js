@@ -776,7 +776,8 @@ class DrawingModule {
     const rect = { x: 12, y: 28 + top, w: w - 24, h: hgt - 36 - top - this.qsheet.space() };
     this.builder.setRect(rect);
     this.lockNote.removeChildren().forEach((c) => c.destroy());
-    const t = textLabel('First choose a zygote genotype below ↓', 16, { fill: 0xffffff, fontWeight: '800' });
+    const where = this.qsheet.mode === 'side' ? 'on the right →' : 'below ↓';
+    const t = textLabel(`First choose a zygote genotype ${where}`, 16, { fill: 0xffffff, fontWeight: '800' });
     t.anchor.set(0.5);
     this.lockNote.addChild(new PIXI.Graphics().roundRect(-t.width / 2 - 16, -t.height / 2 - 10, t.width + 32, t.height + 20, 12).fill({ color: PALETTE.ink, alpha: 0.88 }), t);
     this.lockNote.position.set(w / 2, rect.y + rect.h * 0.4);
@@ -1202,7 +1203,7 @@ class DrawingModule {
     const onward = (fb?.kind === 'good' || fb?.shown) && next;
     const button = (text, onclick, primary = false) => h('button', { class: primary ? 'btn primary' : 'btn', type: 'button', onclick }, text);
     this.qsheet.showForm(
-      ...(s.id === 'a' ? this.zygoteForm() : []),
+      ...(s.id === 'a' ? this.zygoteForm() : [h('p', { class: 'prompt' }, 'Build the cell, then press Check.')]),
       h('div', { class: `feedback${fb ? ` ${fb.kind}` : ''}`, role: 'status' }, fb?.text ?? ''),
       h(
         'div',

@@ -83,8 +83,10 @@ Genetics. Students use it to prepare for the course exams, so exam alignment mat
 - Each question's stage name is the title at the top of the main page ("Mitosis: Metaphase"), without its letter.
 - Forms for a question (like Module 0's gamete list) go on the main page under that title, as HTML in `ctx.stage`
   styled like the build tray. The side panel keeps the prompt and, once it is right, the result.
-- Questions on the main page go in a sheet at the bottom of the canvas (`QuestionSheet` in `js/core/question-sheet.js`),
-  one at a time. The picture lays out above the sheet, and the panel records each right answer with its reason.
+- Questions on the main page go in a compact sheet (`QuestionSheet` in `js/core/question-sheet.js`), one at a time:
+  in a column beside the picture on wide windows (1150px and up), over the bottom of the canvas on medium ones, and
+  under the canvas on phones. The picture keeps as much room as it can, and the panel records each right answer with
+  its reason.
 - A right answer stays on screen, selected with its response, until the student moves on (next question, next action
   or next page). Don't swap the picker for a one-line summary.
 - Under a right answer, the sheet repeats the panel's way on: "Next question ▶" between questions, and after the last

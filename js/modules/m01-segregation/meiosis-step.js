@@ -205,9 +205,9 @@ export class MeiosisStep {
 
     this.frame = () => this.draw();
     this.app.ticker.add(this.frame);
-    // Checkpoint questions sit on the main page. The cell keeps room for them at every stage, so it does not jump
-    // when a stage with a question follows one without.
-    this.sheet = new QuestionSheet(this.mod, () => {});
+    // Checkpoint questions sit on the main page. The cell keeps room for them at every stage (the side column, or
+    // space at the bottom), so it does not jump when a stage with a question follows one without.
+    this.sheet = new QuestionSheet(this.mod, () => {}, { reserve: true });
     const { w, h: hgt } = this.mod.size();
     this.resize(w, hgt);
     this.renderPanel();
@@ -220,8 +220,8 @@ export class MeiosisStep {
   }
 
   resize(w, full) {
-    // Room for the question sheet at the bottom, unless it sits under the canvas (stacked layout).
-    const hgt = full - (this.sheet.el.classList.contains('below') ? 0 : Math.min(270, full * 0.4));
+    // Room for the question sheet when it sits over the bottom of the canvas.
+    const hgt = full - (this.sheet.covers() ? Math.min(240, full * 0.36) : 0);
     const R = Math.max(110, Math.min(w * 0.38, hgt * 0.36));
     const cardSize = Math.max(64, Math.min(104, hgt * 0.16));
     this.g = {

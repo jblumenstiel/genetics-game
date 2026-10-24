@@ -146,25 +146,31 @@ select.gl-field {
 .gl-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 16px; }
 .gl-add { border: 2px dashed #c9b89b; background: transparent; color: var(--ink-soft); }
 .gl-add:hover:not(:disabled) { border-color: var(--sage); color: var(--sage-deep); }
-.stage-sheet .feedback { margin-top: 12px; }
-/* A multiple-choice question on the main page: its choices look like the build tray's pieces. */
+.stage-sheet .feedback { margin-top: 8px; }
+/* A multiple-choice question on the main page: its choices look like the build tray's pieces, kept compact so the
+   picture keeps most of the room. */
 .stage-sheet .question { background: none; border: 0; padding: 0; }
-.stage-sheet .question .prompt { font-size: 16px; }
-.stage-sheet .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.stage-sheet .question .prompt, .stage-sheet > .prompt { font-size: 15px; font-weight: 700; margin: 0 0 8px; }
+.stage-sheet .choices { display: flex; flex-wrap: wrap; gap: 6px; }
 .stage-sheet .choice {
-  min-width: 64px; min-height: 44px; padding: 8px 14px;
-  background: #fff; border: 2px solid #c9b89b; border-radius: 12px;
-  font-size: 17px; font-weight: 800; color: var(--ink); text-align: center;
+  min-width: 56px; min-height: 38px; padding: 5px 12px;
+  background: #fff; border: 2px solid #c9b89b; border-radius: 10px;
+  font-size: 16px; font-weight: 800; color: var(--ink); text-align: center;
 }
 .stage-sheet .choice:hover:not(:disabled) { border-color: var(--sage); }
 .stage-sheet .choice.right { background: var(--sage-wash); border-color: var(--sage); }
 .stage-sheet .choice.wrong { background: var(--clay-wash); border-color: var(--clay); color: var(--ink-soft); }
 .stage-sheet .choice[aria-pressed='true'] { background: var(--sage-wash); border-color: var(--sage); }
-.stage-sheet.wordy .choice { flex: 1 1 100%; font-size: 15px; font-weight: 700; text-align: left; }
-.stage-sheet .sheet-next { margin: 12px 0 0; justify-content: flex-end; }
-/* Module 1's detective: the parents' genotype choices sit at the bottom of the main page, under the litter. */
-.stage-sheet.at-bottom { top: auto; bottom: 12px; }
-.stage-sheet.at-bottom .gl-actions { align-items: center; margin-top: 12px; }
+.stage-sheet.wordy .choice { flex: 1 1 100%; min-height: 34px; padding: 5px 10px; font-size: 14px; font-weight: 700; text-align: left; }
+.stage-sheet .sheet-next { margin: 10px 0 0; justify-content: flex-end; }
+/* Question sheets (QuestionSheet in js/core/question-sheet.js): over the bottom of the canvas on medium windows. */
+.stage-sheet.at-bottom { top: auto; bottom: 12px; padding: 12px 14px 14px; border-radius: 14px; }
+.stage-sheet.at-bottom .gl-actions { align-items: center; margin-top: 10px; }
+.stage-sheet.at-bottom .gl-field { height: 38px; }
+.stage-sheet.at-bottom select.gl-field { background-position: calc(100% - 17px) 16px, calc(100% - 12px) 16px; }
+/* Wide windows: a column between the canvas and the panel, so the picture keeps its full height. */
+.play.with-side { grid-template-columns: minmax(0, 1fr) 300px 400px; }
+.stage-sheet.at-bottom.side { position: static; transform: none; width: auto; align-self: start; margin: 60px 16px 16px 0; max-height: calc(100% - 76px); }
 .dt-rows { display: grid; gap: 10px; }
 .dt-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .dt-name { flex: 1 1 90px; display: grid; line-height: 1.25; }
@@ -173,6 +179,7 @@ select.gl-field {
 /* Two short rows side by side (Module 0's mother and father), stacked on a phone. */
 .dt-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
 @media (max-width: 480px) { .dt-pair { grid-template-columns: 1fr; } }
+.stage-sheet.side .dt-pair { grid-template-columns: 1fr; }
 .dt-rows > .feedback { margin: -2px 0 0; }
 .dt-why summary { cursor: pointer; list-style: none; }
 .dt-why summary::-webkit-details-marker { display: none; }

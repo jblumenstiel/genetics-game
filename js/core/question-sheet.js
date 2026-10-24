@@ -1,26 +1,33 @@
-// A multiple-choice question on the main page, in a sheet at the bottom of the canvas. The step lays its picture
-// out above the sheet (space()), and is told to lay out again when the sheet appears, disappears or grows with
-// feedback. The side panel keeps the prompt and, once it is right, the result (answeredNote). A question the student
-// got right stays in the sheet, its answer selected, until the step moves on (next question, next action or page).
-// On a stacked layout (phones, narrow windows) the sheet sits between the canvas and the panel instead, so the
-// picture keeps its full height.
+// A multiple-choice question on the main page. Where it sits depends on the window:
+//   side:   wide windows. A column between the canvas and the panel, so the picture keeps its full height; the
+//           canvas narrows while the sheet shows, and the step lays out again through its usual resize.
+//   bottom: medium windows. Over the bottom of the canvas; the step lays its picture out above it (space()) and is
+//           told to lay out again when the sheet appears, disappears or grows with feedback.
+//   below:  stacked layouts (phones). Between the canvas and the panel, in the page's flow.
+// The side panel keeps the prompt and, once it is right, the result (answeredNote). A question the student got right
+// stays in the sheet, its answer selected, until the step moves on (next question, next action or page).
 
 import { h, clear, question } from './dom.js';
 
-// Matches the CSS breakpoint where the panel moves under the canvas.
+// Match the CSS: the panel moves under the canvas at STACKED, and the side column appears at SIDE.
 const STACKED = '(max-width: 860px)';
+const SIDE = '(min-width: 1150px)';
 
 export class QuestionSheet {
-  // relayout: called when the sheet's height changes.
-  constructor(mod, relayout) {
+  // relayout: called when the sheet's height over the canvas changes. reserve: keep the side column while the step
+  // is open, even with no question showing, so the picture keeps one width (Module 1's meiosis stages).
+  constructor(mod, relayout, { reserve = false } = {}) {
     this.el = h('div', { class: 'stage-sheet at-bottom', hidden: true });
     this.stage = mod.ctx.stage;
+    this.reserve = reserve;
     this.stacked = window.matchMedia(STACKED);
-    this.onStack = () => {
+    this.wide = window.matchMedia(SIDE);
+    this.onWindow = () => {
       this.place();
       this.fit();
     };
-    this.stacked.addEventListener('change', this.onStack);
+    this.stacked.addEventListener('change', this.onWindow);
+    this.wide.addEventListener('change', this.onWindow);
     this.place();
     this.relayout = relayout;
     this.key = null;
@@ -57,6 +64,7 @@ export class QuestionSheet {
       this.el.classList.toggle('wordy', q.options.some((o) => o.label.length > 12));
     }
     this.el.hidden = false;
+    this.syncColumn();
     this.fit();
   }
 
@@ -106,6 +114,7 @@ export class QuestionSheet {
     clear(this.el).append(...nodes);
     this.el.classList.remove('wordy');
     this.el.hidden = false;
+    this.syncColumn();
     this.fit();
   }
 
@@ -115,20 +124,33 @@ export class QuestionSheet {
     this.key = null;
     this.answeredKey = null;
     clear(this.el);
+    this.syncColumn();
     this.fit();
   }
 
-  // Over the bottom of the canvas, or under it on a stacked layout.
   place() {
-    const below = this.stacked.matches;
-    if (below) this.stage.after(this.el);
-    else this.stage.append(this.el);
-    this.el.classList.toggle('below', below);
+    this.mode = this.stacked.matches ? 'below' : this.wide.matches ? 'side' : 'bottom';
+    if (this.mode === 'bottom') this.stage.append(this.el);
+    else this.stage.after(this.el);
+    this.el.classList.toggle('below', this.mode === 'below');
+    this.el.classList.toggle('side', this.mode === 'side');
+    this.syncColumn();
+  }
+
+  // The page grows a column for the side sheet only while it is in use, so other steps keep the full width.
+  syncColumn() {
+    const on = this.mode === 'side' && (!this.el.hidden || this.reserve);
+    this.stage.parentNode?.classList.toggle('with-side', on);
+  }
+
+  // Whether the sheet sits over the canvas (bottom mode), so the picture must leave room for it.
+  covers() {
+    return this.mode === 'bottom';
   }
 
   // Canvas height the sheet covers, with its margins.
   space() {
-    return this.el.hidden || this.el.classList.contains('below') ? 0 : this.el.offsetHeight + 24;
+    return this.el.hidden || !this.covers() ? 0 : this.el.offsetHeight + 24;
   }
 
   fit() {
@@ -144,8 +166,12 @@ export class QuestionSheet {
   }
 
   remove() {
-    this.stacked.removeEventListener('change', this.onStack);
+    this.stacked.removeEventListener('change', this.onWindow);
+    this.wide.removeEventListener('change', this.onWindow);
     this.el.remove();
+    this.reserve = false;
+    this.mode = null;
+    this.stage.parentNode?.classList.remove('with-side');
   }
 }
 
